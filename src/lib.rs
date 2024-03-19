@@ -1,5 +1,7 @@
 //mod fermented;
 pub mod fetch_identity;
+pub mod identity;
+mod config;
 
 extern crate ferment_macro;
 
