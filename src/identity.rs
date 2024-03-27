@@ -124,3 +124,31 @@ pub fn get_identity_contract_bounds(identifier: Identifier, contract_identifier:
     };
     Identity::V0(identity)
 }
+
+#[ferment_macro::export]
+pub fn Identity_clone(identity: &Identity) -> Identity {
+    identity.clone()
+}
+
+#[ferment_macro::export]
+pub fn IdentityV0_clone(identity: &IdentityV0) -> IdentityV0 {
+    identity.clone()
+}
+
+
+#[ferment_macro::export]
+pub fn IdentityPublicKey_clone(identity_public_key: &IdentityPublicKey) -> IdentityPublicKey {
+    identity_public_key.clone()
+}
+
+#[ferment_macro::export]
+pub fn IdentityPublicKeyV0_clone(identity_public_key: &IdentityPublicKeyV0) -> IdentityPublicKeyV0 {
+    identity_public_key.clone()
+}
+
+#[ferment_macro::export]
+pub fn std_collections_Map_keys_dpp_identity_identity_public_key_KeyID_values_dpp_identity_identity_public_key_IdentityPublicKey_clone(
+    public_keys: BTreeMap<KeyID, IdentityPublicKey>
+) -> BTreeMap<KeyID, IdentityPublicKey> {
+    public_keys.clone()
+}
