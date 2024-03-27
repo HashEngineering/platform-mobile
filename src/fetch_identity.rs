@@ -7,22 +7,34 @@ use rs_sdk::platform::{DocumentQuery, Fetch, FetchMany};
 use dpp::prelude::DataContract;
 use serde::Deserialize;
 
-#[ferment_macro::export]
-pub fn fetch_identity(identifier: Identifier) -> Identity {
-    Identity::create_basic_identity(identifier.into(), PlatformVersion::latest()).expect("failed")
-
-    // Result::Err(ProtocolError::IdentifierError("error with id".into()))
-}
-
-#[ferment_macro::export]
-pub fn fetch_identity2(identifier: Identifier) -> Identity {
-    identity_read(&identifier).expect("not found")
-}
+// #[ferment_macro::export]
+// pub fn fetch_identity(identifier: Identifier) -> Identity {
+//     Identity::create_basic_identity(identifier.into(), PlatformVersion::latest()).expect("failed")
+//
+//     // Result::Err(ProtocolError::IdentifierError("error with id".into()))
+// }
+//
+// #[ferment_macro::export]
+// pub fn fetch_identity2(identifier: Identifier) -> Identity {
+//     identity_read(&identifier).expect("not found")
+// }
 //#[ferment_macro::export]
 pub struct FermentError { error_message: String }
 #[ferment_macro::export]
-pub fn fetch_identity3(identifier: Identifier) -> Result<Identity, String> {
+pub fn fetch_identity_with_core(identifier: Identifier) -> Result<Identity, String> {
     match identity_read(&identifier) {
+        Ok(identity) => Ok(identity),
+        Err(err) => Err(err.to_string())
+    }
+}
+
+#[ferment_macro::export]
+pub fn fetch_identity(identifier: Identifier,
+                       quorum_public_key_callback: u64,//QuorumPublicKeyCallback,
+                       data_contract_callback: u64 //DataContractCallback
+) -> Result<Identity, String> {
+    println!("fetch_identity4");
+    match identity_read_with_callbacks(&identifier, quorum_public_key_callback, data_contract_callback) {
         Ok(identity) => Ok(identity),
         Err(err) => Err(err.to_string())
     }
@@ -32,7 +44,7 @@ pub fn fetch_identity3(identifier: Identifier) -> Result<Identity, String> {
 pub fn get_document()-> Identifier {
     let it = document_read();
     match it {
-        Document::V0(docV0) => docV0.id,
+        Document::V0(docV0) => docV0.owner_id,
         _ => Identifier::default()
     }
 }
@@ -41,8 +53,11 @@ pub fn get_document()-> Identifier {
 use rs_dapi_client::AddressList;
 //use serde::Deserialize;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
+use drive_proof_verifier::ContextProvider;
+use drive_proof_verifier::error::ContextProviderError;
+use rs_sdk::mock::provider::GrpcContextProvider;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
-
+use crate::provider::CallbackContextProvider;
 
 
 async fn test_identity_read() {
@@ -123,6 +138,35 @@ fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
 
         let sdk = cfg.setup_api().await;
 
+        let identity_result = Identity::fetch(&sdk, id).await;
+
+        match identity_result {
+            Ok(Some(identity)) => {
+                // If you have an assertion here, note that assertions in async blocks will panic in the async context
+                // assert_eq!(identity.id(), id);
+                // Instead of an assertion, you might return an Ok or Err based on your logic
+                Ok(identity)
+            },
+            Ok(None) => Err(ProtocolError::IdentifierError("Identity not found".to_string())), // Placeholder for actual error handling
+            Err(e) => Err(ProtocolError::IdentifierError("Identifier not found: failure".to_string())), // Convert your error accordingly
+        }
+    })
+}
+
+fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Identity, ProtocolError> {
+    setup_logs();
+    // Create a new Tokio runtime
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        let id: dpp::prelude::Identifier = id.clone();
+        println!("Setting up SDK");
+        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        println!("Finished SDK");
+        println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
 
         match identity_result {

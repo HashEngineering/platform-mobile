@@ -1,10 +1,11 @@
-//mod fermented;
 pub mod fetch_identity;
 pub mod identity;
 mod config;
+mod provider;
 
 extern crate ferment_macro;
 
+use drive_proof_verifier::ContextProvider;
 use platform_value::types::binary_data::BinaryData;
 
 

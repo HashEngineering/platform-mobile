@@ -1,9 +1,18 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use platform_value::{Identifier, IdentifierBytes32};
 use rs_dapi_client::AddressList;
 use std::sync::Arc;
 use std::str::FromStr;
+use dpp::data_contract::DataContract;
+use drive_proof_verifier::ContextProvider;
+use drive_proof_verifier::error::ContextProviderError;
 use serde::Deserialize;
+
+use lazy_static::lazy_static;
+use parking_lot::Mutex;
+use rs_sdk::mock::provider::GrpcContextProvider;
+use crate::provider::CallbackContextProvider;
 
 /// Existing document ID
 ///
@@ -165,12 +174,28 @@ impl Config {
                 &self.core_password,
             );
 
-            #[cfg(feature = "generate-test-vectors")]
-                let builder = builder.with_dump_dir(&self.dump_dir);
-
             builder.build().expect("cannot initialize api")
         };
 
+        sdk
+    }
+
+    pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<rs_sdk::Sdk> {
+        let context_provider = CallbackContextProvider::new(
+            q,
+            d,
+            None,
+            NonZeroUsize::new(100).expect("Non Zero"),
+            NonZeroUsize::new(100).expect("Non Zero")
+        ).expect("context provider");
+        let context_provider = Arc::new(std::sync::Mutex::new(context_provider));
+        let sdk = {
+            // Dump all traffic to disk
+            let builder = rs_sdk::SdkBuilder::new(self.address_list());
+
+            builder.build().expect("cannot initialize api")
+        };
+        sdk.set_context_provider(context_provider);
         sdk
     }
 
