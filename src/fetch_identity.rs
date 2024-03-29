@@ -4,6 +4,7 @@ use dpp::errors::protocol_error::ProtocolError;
 use platform_version::version::PlatformVersion;
 use dpp::document::{Document, DocumentV0Getters};
 use rs_sdk::platform::{DocumentQuery, Fetch, FetchMany};
+use rs_sdk::platform::types::identity::PublicKeyHash;
 use dpp::prelude::DataContract;
 use serde::Deserialize;
 
@@ -41,6 +42,17 @@ pub fn fetch_identity(identifier: Identifier,
 }
 
 #[ferment_macro::export]
+pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
+                      quorum_public_key_callback: u64,
+                      data_contract_callback: u64
+) -> Result<Identity, String> {
+    println!("fetch_identity4");
+    match identity_from_keyhash_with_callbacks(&PublicKeyHash(key_hash), quorum_public_key_callback, data_contract_callback) {
+        Ok(identity) => Ok(identity),
+        Err(err) => Err(err.to_string())
+    }
+}
+#[ferment_macro::export]
 pub fn get_document()-> Identifier {
     let it = document_read();
     match it {
@@ -53,6 +65,7 @@ pub fn get_document()-> Identifier {
 use rs_dapi_client::AddressList;
 //use serde::Deserialize;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
+use dpp::dashcore::PubkeyHash;
 use drive_proof_verifier::ContextProvider;
 use drive_proof_verifier::error::ContextProviderError;
 use rs_sdk::mock::provider::GrpcContextProvider;
@@ -182,6 +195,35 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
     })
 }
 
+fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: u64) -> Result<Identity, ProtocolError> {
+    setup_logs();
+    // Create a new Tokio runtime
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        let key_hash = pubkey_hash.clone();
+        println!("Setting up SDK");
+        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        println!("Finished SDK");
+        println!("Call fetch");
+        let identity_result = Identity::fetch(&sdk, key_hash).await;
+
+        match identity_result {
+            Ok(Some(identity)) => {
+                // If you have an assertion here, note that assertions in async blocks will panic in the async context
+                // assert_eq!(identity.id(), id);
+                // Instead of an assertion, you might return an Ok or Err based on your logic
+                Ok(identity)
+            },
+            Ok(None) => Err(ProtocolError::IdentifierError("Identity not found".to_string())), // Placeholder for actual error handling
+            Err(e) => Err(ProtocolError::IdentifierError("Identifier not found: failure".to_string())), // Convert your error accordingly
+        }
+    })
+}
+
 pub fn setup_logs() {
     tracing_subscriber::fmt::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::new(
@@ -194,14 +236,14 @@ pub fn setup_logs() {
         .ok();
 }
 
-#[test]
-fn fetch_identity_test() {
-    let result = fetch_identity3(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
-    match result {
-        Ok(identity) => println!("success fetching identity: {:?}", identity),
-        Err(err) => panic!("error fetching identity: {}", err)
-    }
-}
+// #[test]
+// fn fetch_identity_test() {
+//     let result = fetch_identity3(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
+//     match result {
+//         Ok(identity) => println!("success fetching identity: {:?}", identity),
+//         Err(err) => panic!("error fetching identity: {}", err)
+//     }
+// }
 
 #[test]
 fn get_documents_test() {

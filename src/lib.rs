@@ -7,7 +7,12 @@ extern crate ferment_macro;
 
 use drive_proof_verifier::ContextProvider;
 use platform_value::types::binary_data::BinaryData;
+use rs_sdk::platform::types::identity::PublicKeyHash;
 
+#[ferment_macro::export]
+pub fn convert_to_pkh(pkh: [u8; 20]) -> PublicKeyHash {
+    PublicKeyHash(pkh)
+}
 
 #[ferment_macro::export]
 pub fn get_binary_data() -> BinaryData {
