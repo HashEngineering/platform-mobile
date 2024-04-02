@@ -33,6 +33,41 @@ pub const DPNS_DATACONTRACT_OWNER_ID: [u8; 32] = [
     67, 4, 181, 246, 153, 65, 68, 40, 110, 253, 172
 ];
 
+pub const ADDRESS_LIST: [&str; 33] = [
+"34.214.48.68",
+    "35.166.18.166",
+"35.165.50.126",
+    "52.42.202.128",
+"52.12.176.90",
+"44.233.44.95",
+"35.167.145.149",
+    "52.34.144.50",
+"44.240.98.102",
+"54.201.32.131",
+"52.10.229.11",
+"52.13.132.146",
+"44.228.242.181",
+"35.82.197.197",
+"52.40.219.41",
+"44.239.39.153",
+"54.149.33.167",
+"35.164.23.245",
+"52.33.28.47",
+"52.43.86.231",
+"52.43.13.92",
+"35.163.144.230",
+"52.89.154.48",
+"52.24.124.162",
+"44.227.137.77",
+"35.85.21.179",
+"54.187.14.232",
+"54.68.235.201",
+"52.13.250.182",
+"35.82.49.196",
+"44.232.196.6",
+"54.189.164.39",
+"54.213.204.85"];
+
 /// Configuration for dash-platform-sdk.
 ///
 /// Content of this configuration is loaded from environment variables or `${CARGO_MANIFEST_DIR}/.env` file
@@ -139,17 +174,36 @@ impl Config {
             || self.core_port == 0
     }
 
+    // #[allow(unused)]
+    // /// Create list of Platform addresses from the configuration
+    // pub fn address_list(&self) -> AddressList {
+    //     let scheme = match self.platform_ssl {
+    //         true => "https",
+    //         false => "http",
+    //     };
+    //
+    //     let address: String = format!("{}://{}:{}", scheme, self.platform_host, self.platform_port);
+    //
+    //     AddressList::from_iter(vec![http::Uri::from_str(&address).expect("valid uri")])
+    // }
+
     #[allow(unused)]
     /// Create list of Platform addresses from the configuration
     pub fn address_list(&self) -> AddressList {
-        let scheme = match self.platform_ssl {
-            true => "https",
-            false => "http",
+        let scheme = if self.platform_ssl { "https" } else { "http" };
+
+        let uris: Result<Vec<http::Uri>, http::uri::InvalidUri> = if ADDRESS_LIST.is_empty() {
+            println!("default address list is empty");
+            let address = format!("{}://{}:{}", scheme, self.platform_host, self.platform_port);
+            vec![http::Uri::from_str(&address)].into_iter().collect()
+        } else {
+            ADDRESS_LIST.iter().map(|host| {
+                let uri = format!("{}://{}:{}", scheme, host, self.platform_port);
+                http::Uri::from_str(&uri)
+            }).collect()
         };
 
-        let address: String = format!("{}://{}:{}", scheme, self.platform_host, self.platform_port);
-
-        AddressList::from_iter(vec![http::Uri::from_str(&address).expect("valid uri")])
+        uris.map(AddressList::from_iter).expect("valid address list")
     }
 
     /// Create new SDK instance
