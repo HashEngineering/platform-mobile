@@ -73,7 +73,6 @@ pub fn get_document_with_callbacks(quorum_public_key_callback: u64,
 }
 
 
-use rs_dapi_client::AddressList;
 //use serde::Deserialize;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 use dpp::dashcore::PubkeyHash;

@@ -2560,7 +2560,6 @@ dependencies = [
  "parking_lot 0.11.2",
  "platform-value",
  "platform-version",
- "rs-dapi-client",
  "rs-sdk",
  "serde",
  "tokio",

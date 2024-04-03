@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use platform_value::{Identifier, IdentifierBytes32};
-use rs_dapi_client::AddressList;
+use rs_sdk::dapi_client::AddressList;
 use std::sync::Arc;
 use std::str::FromStr;
 use dpp::data_contract::DataContract;
