@@ -7,6 +7,7 @@ use rs_sdk::platform::{DocumentQuery, Fetch, FetchMany};
 use rs_sdk::platform::types::identity::PublicKeyHash;
 use dpp::prelude::DataContract;
 use serde::Deserialize;
+use tokio::runtime::{Runtime, Builder};
 
 // #[ferment_macro::export]
 // pub fn fetch_identity(identifier: Identifier) -> Identity {
@@ -103,9 +104,14 @@ async fn test_identity_read() {
  fn document_read() -> Document {
     setup_logs();
 
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+     let rt = Builder::new_current_thread()
+         .enable_all() // Enables all I/O and time drivers
+         .build()
+         .expect("Failed to create a runtime");
 
-    // Execute the async block using the Tokio runtime
+
+     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let cfg = Config::new();
         let sdk = cfg.setup_api().await;
@@ -152,7 +158,11 @@ fn document_read_with_callbacks(quorum_public_key_callback: u64,
                                 data_contract_callback: u64) -> Document {
     setup_logs();
 
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -200,7 +210,11 @@ fn document_read_with_callbacks(quorum_public_key_callback: u64,
 fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
     setup_logs();
     // Create a new Tokio runtime
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -228,8 +242,12 @@ fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
 fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Identity, ProtocolError> {
     setup_logs();
     // Create a new Tokio runtime
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
+    
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         // Your async code here
@@ -257,7 +275,11 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
 fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: u64) -> Result<Identity, ProtocolError> {
     setup_logs();
     // Create a new Tokio runtime
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {

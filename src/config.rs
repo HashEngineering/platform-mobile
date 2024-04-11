@@ -152,8 +152,10 @@ impl Config {
 
         if config.is_empty() {
             tracing::warn!(path, ?config, "some config fields are empty");
-            #[cfg(not(feature = "offline-testing"))]
-            panic!("invalid configuration")
+            config.platform_host = "54.213.204.85".to_string();
+            config.platform_port = 1443;
+            config.core_port = 19998;
+            config.platform_ssl = true
         }
 
         config
