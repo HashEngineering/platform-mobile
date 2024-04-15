@@ -317,14 +317,14 @@ pub fn setup_logs() {
         .ok();
 }
 
-// #[test]
-// fn fetch_identity_test() {
-//     let result = fetch_identity3(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
-//     match result {
-//         Ok(identity) => println!("success fetching identity: {:?}", identity),
-//         Err(err) => panic!("error fetching identity: {}", err)
-//     }
-// }
+#[test]
+fn fetch_identity_test() {
+    let result = fetch_identity_with_core(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
+    match result {
+        Ok(identity) => println!("success fetching identity: {:?}", identity),
+        Err(err) => panic!("error fetching identity: {}", err)
+    }
+}
 
 #[test]
 fn get_documents_test() {
