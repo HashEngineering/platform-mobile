@@ -3,8 +3,8 @@ use dpp::identity::identity::Identity;
 use dpp::errors::protocol_error::ProtocolError;
 use platform_version::version::PlatformVersion;
 use dpp::document::{Document, DocumentV0Getters};
-use rs_sdk::platform::{DocumentQuery, Fetch, FetchMany};
-use rs_sdk::platform::types::identity::PublicKeyHash;
+use dash_sdk::platform::{DocumentQuery, Fetch, FetchMany};
+use dash_sdk::platform::types::identity::PublicKeyHash;
 use dpp::prelude::DataContract;
 use serde::Deserialize;
 use tokio::runtime::{Runtime, Builder};
@@ -79,7 +79,7 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 use dpp::dashcore::PubkeyHash;
 use drive_proof_verifier::ContextProvider;
 use drive_proof_verifier::error::ContextProviderError;
-use rs_sdk::mock::provider::GrpcContextProvider;
+use dash_sdk::mock::provider::GrpcContextProvider;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
 use crate::provider::CallbackContextProvider;
 
@@ -308,7 +308,7 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
 pub fn setup_logs() {
     tracing_subscriber::fmt::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::new(
-            "info,rs_sdk=trace,h2=info",
+            "info,dash_sdk=trace,h2=info",
         ))
         .pretty()
         .with_ansi(false)

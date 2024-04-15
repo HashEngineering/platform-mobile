@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use platform_value::{Identifier, IdentifierBytes32};
-use rs_sdk::dapi_client::AddressList;
+use dash_sdk::dapi_client::AddressList;
 use std::sync::Arc;
 use std::str::FromStr;
 use dpp::data_contract::DataContract;
@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use rs_sdk::mock::provider::GrpcContextProvider;
+use dash_sdk::mock::provider::GrpcContextProvider;
 use crate::provider::CallbackContextProvider;
 
 /// Existing document ID
@@ -218,12 +218,12 @@ impl Config {
     /// new test vectors during execution
     /// * `offline-testing` is set - use mock implementation and
     /// load existing test vectors from disk
-    pub async fn setup_api(&self) -> Arc<rs_sdk::Sdk> {
+    pub async fn setup_api(&self) -> Arc<dash_sdk::Sdk> {
         // offline testing takes precedence over network testing
         //#[cfg(all(feature = "network-testing", not(feature = "offline-testing")))]
             let sdk = {
             // Dump all traffic to disk
-            let builder = rs_sdk::SdkBuilder::new(self.address_list()).with_core(
+            let builder = dash_sdk::SdkBuilder::new(self.address_list()).with_core(
                 &self.core_ip,
                 self.core_port,
                 &self.core_user,
@@ -236,7 +236,7 @@ impl Config {
         sdk
     }
 
-    pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<rs_sdk::Sdk> {
+    pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<dash_sdk::Sdk> {
         let context_provider = CallbackContextProvider::new(
             q,
             d,
@@ -247,7 +247,7 @@ impl Config {
         let context_provider = Arc::new(std::sync::Mutex::new(context_provider));
         let sdk = {
             // Dump all traffic to disk
-            let builder = rs_sdk::SdkBuilder::new(self.address_list());
+            let builder = dash_sdk::SdkBuilder::new(self.address_list());
 
             builder.build().expect("cannot initialize api")
         };
