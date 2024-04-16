@@ -255,7 +255,7 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
         let id: dpp::prelude::Identifier = id.clone();
         println!("Setting up SDK");
         let sdk = cfg.setup_api_with_callbacks(q, d).await;
-        println!("Finished SDK");
+        println!("Finished SDK, {:?}", sdk);
         println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
 
@@ -267,7 +267,9 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
                 Ok(identity)
             },
             Ok(None) => Err(ProtocolError::IdentifierError("Identity not found".to_string())), // Placeholder for actual error handling
-            Err(e) => Err(ProtocolError::IdentifierError("Identifier not found: failure".to_string())), // Convert your error accordingly
+            Err(e) => Err(ProtocolError::IdentifierError(
+                format!("Identifier not found: failure: {})", e))
+            ) // Convert your error accordingly
         }
     })
 }
@@ -288,7 +290,7 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
         let key_hash = pubkey_hash.clone();
         println!("Setting up SDK");
         let sdk = cfg.setup_api_with_callbacks(q, d).await;
-        println!("Finished SDK");
+        println!("Finished SDK, {:?}", sdk);
         println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, key_hash).await;
 
@@ -300,7 +302,9 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
                 Ok(identity)
             },
             Ok(None) => Err(ProtocolError::IdentifierError("Identity not found".to_string())), // Placeholder for actual error handling
-            Err(e) => Err(ProtocolError::IdentifierError("Identifier not found: failure".to_string())), // Convert your error accordingly
+            Err(e) => Err(ProtocolError::IdentifierError(
+                format!("Identifier not found: failure: {})", e))
+            )
         }
     })
 }
