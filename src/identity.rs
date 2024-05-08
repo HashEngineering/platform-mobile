@@ -125,6 +125,12 @@ pub fn get_identity_contract_bounds(identifier: Identifier, contract_identifier:
     Identity::V0(identity)
 }
 
+
+#[ferment_macro::export]
+pub fn Identifier_clone(identifier: &Identifier) -> Identifier {
+    identifier.clone()
+}
+
 #[ferment_macro::export]
 pub fn Identity_clone(identity: &Identity) -> Identity {
     identity.clone()
