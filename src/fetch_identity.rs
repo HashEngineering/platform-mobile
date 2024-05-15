@@ -53,25 +53,6 @@ pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
         Err(err) => Err(err.to_string())
     }
 }
-#[ferment_macro::export]
-pub fn get_document()-> Identifier {
-    let it = document_read();
-    match it {
-        Document::V0(docV0) => docV0.owner_id,
-        _ => Identifier::default()
-    }
-}
-
-#[ferment_macro::export]
-pub fn get_document_with_callbacks(quorum_public_key_callback: u64,
-                                   data_contract_callback: u64
-)-> Identifier {
-    let it = document_read_with_callbacks(quorum_public_key_callback, data_contract_callback);
-    match it {
-        Document::V0(docV0) => docV0.owner_id,
-        _ => Identifier::default()
-    }
-}
 
 
 //use serde::Deserialize;
@@ -81,6 +62,7 @@ use drive_proof_verifier::ContextProvider;
 use drive_proof_verifier::error::ContextProviderError;
 use dash_sdk::mock::provider::GrpcContextProvider;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
+use crate::fetch_document::get_document;
 use crate::provider::CallbackContextProvider;
 
 
@@ -101,111 +83,7 @@ async fn test_identity_read() {
 
     assert_eq!(identity.id(), id);
 }
- fn document_read() -> Document {
-    setup_logs();
 
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-     let rt = Builder::new_current_thread()
-         .enable_all() // Enables all I/O and time drivers
-         .build()
-         .expect("Failed to create a runtime");
-
-
-     // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        let cfg = Config::new();
-        let sdk = cfg.setup_api().await;
-
-        let data_contract_id = cfg.existing_data_contract_id;
-        tracing::warn!("using existing data contract id and fetching...");
-        let contract = Arc::new(
-            DataContract::fetch(&sdk, data_contract_id)
-                .await
-                .expect("fetch data contract")
-                .expect("data contract not found"),
-        );
-
-        tracing::warn!("fetching many...");
-        // Fetch multiple documents so that we get document ID
-        let all_docs_query =
-            DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)
-                .expect("create SdkDocumentQuery");
-        let first_doc = Document::fetch_many(&sdk, all_docs_query)
-            .await
-            .expect("fetch many documents")
-            .pop_first()
-            .expect("first item must exist")
-            .1
-            .expect("document must exist");
-
-        // Now query for individual document
-        let query = DocumentQuery::new(contract, &cfg.existing_document_type_name)
-            .expect("create SdkDocumentQuery")
-            .with_document_id(&first_doc.id());
-
-        let doc = Document::fetch(&sdk, query)
-            .await
-            .expect("fetch document")
-            .expect("document must be found");
-
-        //assert_eq!(first_doc, doc);
-
-        doc
-    })
-}
-
-fn document_read_with_callbacks(quorum_public_key_callback: u64,
-                                data_contract_callback: u64) -> Document {
-    setup_logs();
-
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        let cfg = Config::new();
-        let sdk = cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await;
-
-        let data_contract_id = cfg.existing_data_contract_id;
-        tracing::warn!("using existing data contract id and fetching...");
-        let contract = Arc::new(
-            DataContract::fetch(&sdk, data_contract_id)
-                .await
-                .expect("fetch data contract")
-                .expect("data contract not found"),
-        );
-
-        tracing::warn!("fetching many...");
-        // Fetch multiple documents so that we get document ID
-        let all_docs_query =
-            DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)
-                .expect("create SdkDocumentQuery");
-        let first_doc = Document::fetch_many(&sdk, all_docs_query)
-            .await
-            .expect("fetch many documents")
-            .pop_first()
-            .expect("first item must exist")
-            .1
-            .expect("document must exist");
-
-        // Now query for individual document
-        let query = DocumentQuery::new(contract, &cfg.existing_document_type_name)
-            .expect("create SdkDocumentQuery")
-            .with_document_id(&first_doc.id());
-
-        let doc = Document::fetch(&sdk, query)
-            .await
-            .expect("fetch document")
-            .expect("document must be found");
-
-        //assert_eq!(first_doc, doc);
-
-        doc
-    })
-}
 
 fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
     setup_logs();

@@ -11,7 +11,7 @@ use platform_value::converter::serde_json;
 use dash_sdk::platform::Fetch;
 use dash_sdk::{Sdk, Error};
 
-//#[ferment_macro::export]
+#[ferment_macro::export]
 type QuorumPublicKeyCallback = extern "C" fn(quorum_type: u32, quorum_hash: *const u8, core_chain_locked_height: u32, result: * mut u8);
 
 //#[ferment_macro::export]

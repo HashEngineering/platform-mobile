@@ -2,6 +2,9 @@ pub mod fetch_identity;
 pub mod identity;
 mod config;
 mod provider;
+pub mod clone;
+pub mod operators;
+pub mod fetch_document;
 
 extern crate ferment_macro;
 
