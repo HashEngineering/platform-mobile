@@ -5,12 +5,15 @@ mod provider;
 pub mod clone;
 pub mod operators;
 pub mod fetch_document;
+pub mod put;
 
 extern crate ferment_macro;
 
 use drive_proof_verifier::ContextProvider;
 use platform_value::types::binary_data::BinaryData;
 use dash_sdk::platform::types::identity::PublicKeyHash;
+use dpp::bincode::{Decode, Encode};
+use platform_value::{Hash256, Value};
 
 #[ferment_macro::export]
 pub fn convert_to_pkh(pkh: [u8; 20]) -> PublicKeyHash {
@@ -24,4 +27,14 @@ pub fn get_binary_data() -> BinaryData {
 #[ferment_macro::export]
 pub fn get_binary_data2() -> BinaryData {
      BinaryData(vec![0, 1, 2, 3])
+}
+
+#[ferment_macro::export]
+pub fn get_platform_value() -> Value {
+    Value::Bool(false)
+}
+
+#[ferment_macro::export]
+pub fn get_platform_value_with_map() ->  Value {
+    Value::Map(vec![(Value::Text("key".to_string()), Value::I32(4))])
 }

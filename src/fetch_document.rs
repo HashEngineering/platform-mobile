@@ -42,8 +42,38 @@ pub fn get_domain_document_starts_with(starts_with: &String, q: u64, d: u64)-> V
 
  */
 
+// #[allow(non_camel_case_types)]
+// #[ferment_macro::register(Option<Document>)]
+// #[derive(Clone)]
+// pub struct option_Document {
+//     raw: *mut Option<Document>,
+// }
+// impl ferment_interfaces::FFIConversion<Option<Document>> for option_Document {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> Option<Document> {
+//         let ffi = &*ffi;
+//         //Option::<Document>::try_from(&*ffi.raw).expect("err")
+//         (*ffi.raw).clone()
+//     }
+//     unsafe fn ffi_to_const(obj: Option<Document>) -> *const Self {
+//         ferment_interfaces::boxed(option_Document { raw: ferment_interfaces::boxed(obj) })
+//     }
+// }
+//
+// impl Drop for option_Document {
+//     fn drop(&mut self) {
+//         unsafe {
+//             ferment_interfaces::unbox_any(self.raw);
+//         }
+//     }
+// }
+//
 // #[ferment_macro::export]
-// pub fn get_documents_tree(identifier: &Identifier, document_type: &String, q: u64, d: u64)-> BTreeMap<Identifier, Option<dpp::document::Document>> {
+// pub fn get_documents_tree(
+//     identifier: &Identifier,
+//     document_type: &String,
+//     q: u64,
+//     d: u64
+// ) -> BTreeMap<Identifier, Option<Document>> {
 //     documents_with_callbacks_tree(identifier, document_type, q, d)
 // }
 
