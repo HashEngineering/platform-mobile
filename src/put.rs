@@ -1,24 +1,41 @@
+use std::io;
+use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use dash_sdk::{Error, Sdk};
 use dash_sdk::platform::transition::put_identity::PutIdentity;
-use dpp::dashcore::PrivateKey;
+use dash_sdk::platform::transition::TxId;
+use dashcore::hashes::Hash;
+use dpp::bincode::{Decode, Encode};
+use dpp::dashcore::{InstantLock, Network, OutPoint, PrivateKey, Transaction, Txid};
+use dpp::dashcore::bls_sig_utils::BLSSignature;
+use dpp::dashcore::consensus::Decodable;
+use dpp::dashcore::hash_types::CycleHash;
+use dpp::dashcore::hashes::sha256d;
 use dpp::identity::identity::Identity;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
 use dpp::identity::identity_public_key::IdentityPublicKey;
 use dpp::identity::signer::Signer;
+use dpp::identity::state_transition::asset_lock_proof::chain::ChainAssetLockProof;
+use dpp::identity::state_transition::asset_lock_proof::InstantAssetLockProof;
 use dpp::prelude::AssetLockProof;
 use dpp::ProtocolError;
 use platform_value::types::binary_data::BinaryData;
 use platform_version::version::PlatformVersion;
+use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
+use tracing::trace;
 use crate::config::Config;
 use crate::fetch_identity::setup_logs;
 use crate::provider::Cache;
 
-#[ferment_macro::export]
-type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
+//#[ferment_macro::export]
+pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
 
+// #[ferment_macro::export]
+// pub type SignerCallback2 = fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
+// #[ferment_macro::export]
+// pub type SignerCallback3 = extern "C" fn(key: Vec<u8>, data: Vec<u8>, result: Vec<u8>) -> u32;
 //#[ferment_macro::export]
 //type SignerCallback = extern "C" fn(identity_public_key: * const u8, data: * const u8) -> * const u8;
 pub struct CallbackSigner {
@@ -50,6 +67,7 @@ impl Signer for CallbackSigner {
         // stub
         let key_data = identity_public_key.data();
         let mut result = [0u8; 128];
+        trace!("CallbackSigner::sign({:?}, {:?})", key_data.as_slice(), data);
         let length = (self.signer_callback)(key_data.as_slice().as_ptr(), key_data.len() as u32, data.as_ptr(), data.len() as u32, result.as_mut_ptr());
 
         // Check the return value to determine if the operation was successful
@@ -75,11 +93,123 @@ pub fn put_identity_create(identity: Identity, signer_callback: u64) -> Identity
     identity
 }
 
-fn put_identity(identity: &Identity,
-                asset_lock_proof: AssetLockProof,
-                asset_lock_proof_private_key: PrivateKey,
-                signer: CallbackSigner,
-                q: u64, d: u64) -> Result<Identity, Error> {
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[ferment_macro::export]
+pub struct OutPointFFI {
+    /// The referenced transaction's txid.
+    pub txid: [u8; 32],
+    /// The index of the referenced output in its transaction's vout.
+    pub vout: u32,
+}
+
+#[ferment_macro::export]
+pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
+    a.clone()
+}
+
+impl From<OutPointFFI> for OutPoint {
+    fn from(value: OutPointFFI) -> Self {
+        Self {
+            txid: Txid::from_raw_hash(sha256d::Hash::from_slice(value.txid.as_slice()).unwrap()),
+            vout: value.vout,
+        }
+    }
+}
+
+// #[derive(Clone, Eq, PartialEq)]
+// /// Instant send lock is a mechanism used by the Dash network to
+// /// confirm transaction within 1 or 2 seconds. This data structure
+// /// represents a p2p message containing a data to verify such a lock.
+// pub struct InstantLockFFI {
+//     /// Instant lock version
+//     pub version: u8,
+//     /// Transaction inputs locked by this instant lock
+//     pub inputs: Vec<OutPointFFI>,
+//     /// Transaction hash locked by this lock
+//     pub txid: [u8; 32],
+//     /// Hash to figure out which quorum was used to sign this IS lock
+//     pub cyclehash: [u8; 32],
+//     /// Quorum signature for this IS lock
+//     pub signature: [u8; 96],
+// }
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[ferment_macro::export]
+pub struct ChainAssetLockProofFFI {
+    /// Core height on which the asset lock transaction was chain locked or higher
+    pub core_chain_locked_height: u32,
+    /// A reference to Asset Lock Special Transaction ID and output index in the payload
+    pub out_point: OutPointFFI,
+}
+
+#[ferment_macro::export]
+pub fn ChainAssetLockProofFFI_clone(a: ChainAssetLockProofFFI) -> ChainAssetLockProofFFI {
+    a.clone()
+}
+
+impl From<ChainAssetLockProofFFI> for ChainAssetLockProof {
+    fn from(value: ChainAssetLockProofFFI) -> Self {
+        ChainAssetLockProof {
+            core_chain_locked_height: value.core_chain_locked_height,
+            out_point: value.out_point.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[ferment_macro::export]
+pub struct InstantAssetLockProofFFI {
+    /// The transaction's Instant Lock
+    pub instant_lock: Vec<u8>,
+    /// Asset Lock Special Transaction
+    pub transaction: Vec<u8>,
+    /// Index of the output in the transaction payload
+    pub output_index: u32,
+}
+
+#[ferment_macro::export]
+pub fn InstantAssetLockProofFFI_clone(a: InstantAssetLockProofFFI) -> InstantAssetLockProofFFI {
+    a.clone()
+}
+
+impl From<InstantAssetLockProofFFI> for InstantAssetLockProof {
+    fn from(value: InstantAssetLockProofFFI) -> Self {
+        let mut islock_cursor = Cursor::new(value.instant_lock);
+        let mut transaction_cursor = Cursor::new(value.transaction);
+        InstantAssetLockProof {
+            instant_lock: InstantLock::consensus_decode(&mut islock_cursor).unwrap(),
+            transaction: Transaction::consensus_decode(&mut transaction_cursor).unwrap(),
+            output_index: value.output_index,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[ferment_macro::export]
+pub enum AssetLockProofFFI {
+    Instant(InstantAssetLockProofFFI),
+    Chain(ChainAssetLockProofFFI),
+}
+
+impl From<AssetLockProofFFI> for AssetLockProof {
+    fn from(value: AssetLockProofFFI) -> Self {
+        match value {
+            AssetLockProofFFI::Instant(instant) => AssetLockProof::Instant(instant.into()),
+            AssetLockProofFFI::Chain(chain) => AssetLockProof::Chain(chain.into())
+        }
+    }
+}
+
+#[ferment_macro::export]
+pub fn put_identity(
+    identity: Identity,
+    asset_lock_proof: AssetLockProofFFI,
+    asset_lock_proof_private_key: Vec<u8>,
+    signer_callback: u64,
+    q: u64,
+    d: u64,
+    is_testnet: bool
+) -> Result<Identity, String> {
     setup_logs();
     // Create a new Tokio runtime
     //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
@@ -92,17 +222,30 @@ fn put_identity(identity: &Identity,
     rt.block_on(async {
         // Your async code here
         let cfg = Config::new();
-        println!("Setting up SDK");
+        trace!("Setting up SDK");
         let sdk = cfg.setup_api_with_callbacks(q, d).await;
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up network, private key and signer");
+
+        let network = if is_testnet {
+            Network::Testnet
+        } else {
+            Network::Dash
+        };
+        let private_key = PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network).expect("private key");
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+
+        trace!("Call Identity::put_to_platform_and_wait_for_response");
         let identity_result = Identity::put_to_platform_and_wait_for_response(
-            identity,
+            &identity,
             &sdk,
-            asset_lock_proof,
-            &asset_lock_proof_private_key,
+            asset_lock_proof.into(),
+            &private_key,
             &signer).await;
 
-        identity_result
+        match identity_result {
+            Ok(identity) => Ok(identity),
+            Err(err) => Err(err.to_string())
+        }
     })
 }
