@@ -4,6 +4,7 @@ use dpp::document::v0::DocumentV0;
 use dpp::identity::identity_public_key::TimestampMillis;
 use dpp::identity::identity_public_key::KeyID;
 use dpp::prelude::{BlockHeight, CoreBlockHeight, Revision};
+use drive::query::{OrderClause, WhereClause, WhereOperator};
 use platform_value::{Value, ValueMap};
 
 #[ferment_macro::export]
@@ -71,4 +72,18 @@ pub fn Arr_u8_20_clone(slice: [u8; 20]) -> [u8; 20] {
 #[ferment_macro::export]
 pub fn Arr_u8_36_clone(slice: [u8; 36]) -> [u8; 36] {
     slice.clone()
+}
+
+#[ferment_macro::export]
+pub fn WhereClause_clone(o: WhereClause) -> WhereClause {
+    o.clone()
+}
+
+#[ferment_macro::export]
+pub fn WhereOperator_clone(o: WhereOperator) -> WhereOperator {
+    o.clone()
+}
+#[ferment_macro::export]
+pub fn OrderClause_clone(o: OrderClause) -> OrderClause {
+    o.clone()
 }

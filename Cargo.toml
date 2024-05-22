@@ -13,6 +13,7 @@ dpp = { path = "../platform/packages/rs-dpp" }
 dash-sdk = { path = "../platform/packages/rs-sdk" }
 #rs-dapi-client = { path = "../platform/packages/rs-dapi-client" }
 platform-version = { path = "../platform/packages/rs-platform-version" }
+dapi-grpc = { path = "../platform/packages/dapi-grpc" }
 drive-proof-verifier = { path = "../platform/packages/rs-drive-proof-verifier" }
 drive = { path = "../platform/packages/rs-drive", default-features = false, features = [
     "verify",
