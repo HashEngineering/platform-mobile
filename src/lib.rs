@@ -6,6 +6,7 @@ pub mod clone;
 pub mod operators;
 pub mod fetch_document;
 pub mod put;
+pub mod data_contracts;
 
 extern crate ferment_macro;
 

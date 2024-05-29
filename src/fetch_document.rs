@@ -334,7 +334,7 @@ fn dpns_domain_starts_with(starts_with: &String,
                 .expect("data contract not found"),
         );
 
-        tracing::warn!("fetching many...");
+        tracing::warn!("fetching many...starts with");
         // Fetch multiple documents so that we get document ID
         let all_docs_query =
             DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)
@@ -395,7 +395,7 @@ fn dpns_domain_by_id(unique_id: &Identifier,
                 .expect("data contract not found"),
         );
 
-        tracing::warn!("fetching many...");
+        tracing::warn!("fetching many...by id");
         // Fetch multiple documents so that we get document ID
         let all_docs_query =
             DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)

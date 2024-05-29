@@ -2,29 +2,43 @@ use std::io;
 use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use dash_sdk::{Error, Sdk};
+use std::time::Duration;
+use dash_sdk::{Error, RequestSettings, Sdk};
+use dash_sdk::platform::Fetch;
+use dash_sdk::platform::transition::put_document::PutDocument;
 use dash_sdk::platform::transition::put_identity::PutIdentity;
+use dash_sdk::platform::transition::put_settings::PutSettings;
 use dash_sdk::platform::transition::TxId;
 use dashcore::hashes::Hash;
 use dpp::bincode::{Decode, Encode};
+use dpp::consensus::ConsensusError;
 use dpp::dashcore::{InstantLock, Network, OutPoint, PrivateKey, Transaction, Txid};
 use dpp::dashcore::bls_sig_utils::BLSSignature;
 use dpp::dashcore::consensus::Decodable;
 use dpp::dashcore::hash_types::CycleHash;
 use dpp::dashcore::hashes::sha256d;
+use dpp::data_contract::{DataContract, DataContractV0};
+use dpp::data_contract::accessors::v0::DataContractV0Getters;
+use dpp::data_contract::DataContract::V0;
+use dpp::data_contract::document_type::DocumentType;
+use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
+use dpp::document::{Document, DocumentV0Getters};
 use dpp::identity::identity::Identity;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
 use dpp::identity::identity_public_key::IdentityPublicKey;
 use dpp::identity::signer::Signer;
 use dpp::identity::state_transition::asset_lock_proof::chain::ChainAssetLockProof;
 use dpp::identity::state_transition::asset_lock_proof::InstantAssetLockProof;
-use dpp::prelude::AssetLockProof;
+use dpp::prelude::{AssetLockProof, BlockHeight, CoreBlockHeight};
 use dpp::ProtocolError;
+use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
+use platform_value::Identifier;
 use platform_value::types::binary_data::BinaryData;
 use platform_version::version::PlatformVersion;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
 use tracing::trace;
+use rand::random;
 use crate::config::Config;
 use crate::fetch_identity::setup_logs;
 use crate::provider::Cache;
@@ -247,5 +261,96 @@ pub fn put_identity(
             Ok(identity) => Ok(identity),
             Err(err) => Err(err.to_string())
         }
+    })
+}
+
+#[ferment_macro::export]
+pub fn put_document(
+    document: Document,
+    data_contract_id: Identifier,
+    document_type_str: String,
+    identity_public_key: IdentityPublicKey,
+    block_height: BlockHeight,
+    core_block_height: CoreBlockHeight,
+    signer_callback: u64,
+    q: u64,
+    d: u64
+) -> Result<Document, String> {
+
+    setup_logs();
+    // Create a new Tokio runtime
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up entropy, data contract and signer");
+
+        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
+            Ok(Some(contract)) => contract,
+            Ok(None) => return Err("no contract".to_string()),
+            Err(e) => return Err(e.to_string())
+        };
+
+        let document_type = data_contract
+            .document_type_for_name(&document_type_str)
+            .expect("expected a profile document type");
+
+
+
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let entropy_generator = DefaultEntropyGenerator;
+        let entropy = entropy_generator.generate().unwrap();
+        //let document_entropy = entropy_generator.generate().unwrap();
+        trace!("document_entropy: {:?}", entropy);
+        trace!("IdentityPublicKey: {:?}", identity_public_key);
+
+        // recreate the document using the same entroy value as when it is submitted below
+        let new_document_result = document_type.create_document_from_data(
+            document.properties().into(),
+            document.owner_id(),
+            block_height,
+            core_block_height,
+            entropy,
+            PlatformVersion::latest()
+        );
+
+        let new_document = match new_document_result {
+            Ok(doc) => doc,
+            Err(e) => return Err(e.to_string())
+        };
+
+        let settings = PutSettings {
+            request_settings: RequestSettings {
+                connect_timeout: None,
+                timeout: None,
+                retries: Some(10),
+                ban_failed_address: Some(true),
+            },
+            identity_nonce_stale_time_s: None,
+            user_fee_increase: None,
+        };
+
+        trace!("Call Document::put_to_platform_and_wait_for_response");
+        let document_result = new_document.put_to_platform_and_wait_for_response(
+            //&document,
+            &sdk,
+            document_type.to_owned_document_type(),
+            entropy,
+            identity_public_key,
+            Arc::new(data_contract),
+            &signer,
+            Some(settings)
+        ).await;
+
+        document_result.map_err(|err| err.to_string())
     })
 }
