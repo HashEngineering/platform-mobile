@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use dpp::document::Document;
-use dpp::document::v0::DocumentV0;
+use dpp::document::DocumentV0;
 use dpp::identity::identity_public_key::TimestampMillis;
 use dpp::identity::identity_public_key::KeyID;
 use dpp::prelude::{BlockHeight, CoreBlockHeight, Revision};

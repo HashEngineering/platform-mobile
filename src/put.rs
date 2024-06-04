@@ -25,8 +25,8 @@ use dpp::data_contract::DataContract::V0;
 use dpp::data_contract::document_type::DocumentType;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
-use dpp::document::v0::DocumentV0;
-use dpp::identity::identity::Identity;
+use dpp::document::DocumentV0;
+use dpp::identity::Identity;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
 use dpp::identity::identity_public_key::IdentityPublicKey;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
@@ -39,7 +39,7 @@ use dpp::ProtocolError;
 use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
 use platform_value::{Identifier, Value};
 use platform_value::string_encoding::Encoding;
-use platform_value::types::binary_data::BinaryData;
+use platform_value::BinaryData;
 use platform_version::version::PlatformVersion;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
@@ -352,7 +352,6 @@ pub fn put_document(
             identity_public_key,
             Arc::new(data_contract),
             &signer,
-            Some(settings)
         ).await;
 
         document_result.map_err(|err| err.to_string())

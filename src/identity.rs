@@ -3,7 +3,7 @@ use dpp::dashcore::secp256k1::rand;
 //use dpp::dashcore::secp256k1::rand::rngs::StdRng;
 use dpp::dashcore::secp256k1::rand::SeedableRng;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
-use dpp::identity::identity::Identity;
+use dpp::identity::Identity;
 use dpp::identity::identity_public_key::IdentityPublicKey;
 use dpp::identity::v0::IdentityV0;
 use dpp::identity::identity_public_key::contract_bounds::ContractBounds;
@@ -13,7 +13,7 @@ use dpp::identity::KeyType::ECDSA_SECP256K1;
 use dpp::identity::Purpose::AUTHENTICATION;
 use dpp::identity::SecurityLevel::MASTER;
 use platform_value::IdentifierBytes32;
-use platform_value::types::identifier::Identifier;
+use platform_value::Identifier;
 use platform_version::version::LATEST_PLATFORM_VERSION;
 
 #[ferment_macro::export]

@@ -4,22 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ferment-interfaces = { path = "../ferment/ferment-interfaces" }
-ferment-macro = { path = "../ferment/ferment-macro" }
+ferment-interfaces = { git = "https://github.com/pankcuf/ferment" }
+ferment-macro = { git = "https://github.com/pankcuf/ferment" }
 
-platform-value = { path = "../platform/packages/rs-platform-value" }
-data-contracts = { path = "../platform/packages/data-contracts" }
-dpp = { path = "../platform/packages/rs-dpp" }
-dash-sdk = { path = "../platform/packages/rs-sdk" }
+platform-value = { git = "https://github.com/dashpay/platform" }
+data-contracts = { git = "https://github.com/dashpay/platform"  }
+dpp = { git = "https://github.com/dashpay/platform"  }
+dash-sdk = { git = "https://github.com/dashpay/platform"  }
 #rs-dapi-client = { path = "../platform/packages/rs-dapi-client" }
-platform-version = { path = "../platform/packages/rs-platform-version" }
-dapi-grpc = { path = "../platform/packages/dapi-grpc" }
-drive-proof-verifier = { path = "../platform/packages/rs-drive-proof-verifier" }
-drive = { path = "../platform/packages/rs-drive", default-features = false, features = [
+platform-version = { git = "https://github.com/dashpay/platform"  }
+dapi-grpc = { git = "https://github.com/dashpay/platform"  }
+drive-proof-verifier = { git = "https://github.com/dashpay/platform"  }
+drive = { git = "https://github.com/dashpay/platform" , default-features = false, features = [
     "verify",
     "serde",
 ] }
-simple-signer = { path = "../platform/packages/simple-signer" }
+simple-signer = { git = "https://github.com/dashpay/platform"  }
 dotenvy = { version = "0.15.7", optional = false }
 envy = { version = "0.4.2", optional = false }
 lazy_static = "1.4.0"
@@ -44,11 +44,6 @@ dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
     "serde",
 ], default-features = false, branch = "master" }
 rand = "0.8.5"
-
-#[build-dependencies]
-#cbindgen = "0.26.0"
-#ferment = { path = "../ferment/ferment" }
-#toml = "0.8.8"
 
 [lib]
 name = "platform_mobile"
