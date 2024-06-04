@@ -52,8 +52,8 @@ fn test_put_documents_for_username() {
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-test-2".to_string();
-    let full_name = "my-test-2.dash";
+    let label = "my-test-3".to_string();
+    let full_name = "my-test-3.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -91,7 +91,9 @@ fn test_put_documents_for_username() {
     // value = {HashMap@3978}  size = 1
     // "allowSubdomains" -> {Boolean@3983} false
     let mut domain_props: BTreeMap<String, Value> = BTreeMap::new();
-    let records = vec![(Value::Text("dashUniqueIdentityId".to_string()), Value::Identifier(owner_id.into()))];
+    //let records = vec![(Value::Text("dashUniqueIdentityId".to_string()), Value::Identifier(owner_id.into()))];
+    let records = vec![(Value::Text("dashAliasIdentityId".to_string()), Value::Identifier(owner_id.into()))];
+
     let subdomain_rules = vec![(Value::Text("allowSubdomains".to_string()), Value::Bool(false))];
     domain_props.insert("records".to_string(), Value::Map(records));
     domain_props.insert("label".to_string(), Value::Text(label.clone()));
@@ -146,16 +148,11 @@ fn test_put_documents_for_username() {
             .expect("expected a profile document type");
 
         let hex_private_key = "63813f400ee02b7e3e1f1c343704895dd145ebd8df5d7b3dc9f8c447b607cac1";
-
-        // Convert hex string to a vector of bytes
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
-        //key_map.insert(identity_public_key.data().to_vec(), private_key);
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
         let entropy = entropy_generator.generate().unwrap();
-        //let document_entropy = entropy_generator.generate().unwrap();
         trace!("document_entropy: {:?}", entropy);
-        //trace!("IdentityPublicKey: {:?}", identity_public_key);
 
         // recreate the document using the same entropy value as when it is submitted below
         let new_preorder_document = preorder_document_type.create_document_from_data(

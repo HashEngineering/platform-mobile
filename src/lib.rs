@@ -6,6 +6,7 @@ pub mod clone;
 pub mod operators;
 pub mod fetch_document;
 pub mod put;
+pub mod custom;
 pub mod data_contracts;
 mod put_test;
 
