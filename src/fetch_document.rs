@@ -263,12 +263,15 @@ pub fn fetch_documents_with_query(contract_id: &Identifier,
 
         let data_contract_id = contract_id;
         tracing::warn!("using existing data contract id and fetching...");
-        let contract = Arc::new(
+        let contract_result =
             DataContract::fetch(&sdk, data_contract_id.clone())
-                .await
-                .expect("fetch data contract")
-                .expect("data contract not found"),
-        );
+                .await;
+
+        let contract = match contract_result {
+            Ok(Some(data_contract)) => Arc::new(data_contract),
+            Ok(None) => return Err("data contract not found".to_string()),
+            Err(E) => return Err("fetch data contract error".to_string())
+        };
 
         tracing::warn!("fetching many...");
         // Fetch multiple documents so that we get document ID

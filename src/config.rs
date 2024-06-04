@@ -233,7 +233,7 @@ impl Config {
             builder.build().expect("cannot initialize api")
         };
 
-        sdk
+        sdk.into()
     }
 
     pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<dash_sdk::Sdk> {
@@ -245,14 +245,14 @@ impl Config {
             NonZeroUsize::new(100).expect("Non Zero")
         ).expect("context provider");
         let context_provider = Arc::new(std::sync::Mutex::new(context_provider));
-        let sdk = {
+        let mut sdk = {
             // Dump all traffic to disk
             let builder = dash_sdk::SdkBuilder::new(self.address_list());
 
             builder.build().expect("cannot initialize api")
         };
         sdk.set_context_provider(context_provider);
-        sdk
+        sdk.into()
     }
 
     fn default_identity_id() -> Identifier {

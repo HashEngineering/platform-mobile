@@ -5,6 +5,7 @@ use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract;
 use dpp::document::Document;
 use platform_value::{Identifier, IdentifierBytes32};
+use platform_value::string_encoding::Encoding;
 use tokio::runtime::Builder;
 use crate::config::Config;
 use crate::fetch_identity::setup_logs;
@@ -64,12 +65,11 @@ pub fn fetch_data_contract(contract_id: &Identifier,
         tracing::warn!("using existing data contract id and fetching...");
         let contract =
             DataContract::fetch(&sdk, data_contract_id.clone())
-                .await
-                .expect("fetch data contract");
-
+                .await;
         match contract {
-            Some(data_contract) => Ok(data_contract.into()),
-            None => Err("data contract not found".to_string())
+            Ok(Some(data_contract)) => Ok(data_contract.into()),
+            Ok(None) => Err("data contract not found".to_string()),
+            Err(e) => Err(e.to_string())
         }
     })
 }
@@ -84,4 +84,17 @@ fn get_data_contract_test() {
         0
     ).unwrap();
     println!("dpns: {:?}", data_contract);
+}
+
+#[test]
+fn get_missing_data_contract_test() {
+    let config = Config::new();
+
+    let data_contract_result = fetch_data_contract(
+        &Identifier::from_string("Fds5DDfXoLwpUZ71AAVYZP1uod8S7Ze2bR28JExBvZKR", Encoding::Base58).expect("identifier"),
+        0,
+        0
+    );
+
+    assert!(data_contract_result.is_err());
 }

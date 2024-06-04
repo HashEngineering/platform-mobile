@@ -19,6 +19,7 @@ drive = { path = "../platform/packages/rs-drive", default-features = false, feat
     "verify",
     "serde",
 ] }
+simple-signer = { path = "../platform/packages/simple-signer" }
 dotenvy = { version = "0.15.7", optional = false }
 envy = { version = "0.4.2", optional = false }
 lazy_static = "1.4.0"
@@ -35,6 +36,14 @@ quote = "1.0.35"
 syn = "2.0.53"
 serde_json = "1.0.115"
 sha2 = "0.10.8"
+dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
+    "std",
+    "secp-recovery",
+    "rand",
+    "signer",
+    "serde",
+], default-features = false, branch = "master" }
+rand = "0.8.5"
 
 #[build-dependencies]
 #cbindgen = "0.26.0"

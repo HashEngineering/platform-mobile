@@ -1,5 +1,6 @@
+use std::collections::{BTreeMap, HashMap};
 use std::io;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +11,7 @@ use dash_sdk::platform::transition::put_identity::PutIdentity;
 use dash_sdk::platform::transition::put_settings::PutSettings;
 use dash_sdk::platform::transition::TxId;
 use dashcore::hashes::Hash;
+use dashcore::signer::sign;
 use dpp::bincode::{Decode, Encode};
 use dpp::consensus::ConsensusError;
 use dpp::dashcore::{InstantLock, Network, OutPoint, PrivateKey, Transaction, Txid};
@@ -23,22 +25,27 @@ use dpp::data_contract::DataContract::V0;
 use dpp::data_contract::document_type::DocumentType;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
+use dpp::document::v0::DocumentV0;
 use dpp::identity::identity::Identity;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
 use dpp::identity::identity_public_key::IdentityPublicKey;
+use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
+use dpp::identity::{KeyType, Purpose, SecurityLevel};
 use dpp::identity::signer::Signer;
 use dpp::identity::state_transition::asset_lock_proof::chain::ChainAssetLockProof;
 use dpp::identity::state_transition::asset_lock_proof::InstantAssetLockProof;
 use dpp::prelude::{AssetLockProof, BlockHeight, CoreBlockHeight};
 use dpp::ProtocolError;
 use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
-use platform_value::Identifier;
+use platform_value::{Identifier, Value};
+use platform_value::string_encoding::Encoding;
 use platform_value::types::binary_data::BinaryData;
 use platform_version::version::PlatformVersion;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
 use tracing::trace;
 use rand::random;
+use simple_signer::signer::SimpleSigner;
 use crate::config::Config;
 use crate::fetch_identity::setup_logs;
 use crate::provider::Cache;
@@ -273,7 +280,7 @@ pub fn put_document(
     block_height: BlockHeight,
     core_block_height: CoreBlockHeight,
     signer_callback: u64,
-    q: u64,
+    quorum_key_callback: u64,
     d: u64
 ) -> Result<Document, String> {
 
@@ -290,7 +297,7 @@ pub fn put_document(
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        let sdk = cfg.setup_api_with_callbacks(quorum_key_callback, d).await;
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
@@ -304,8 +311,6 @@ pub fn put_document(
             .document_type_for_name(&document_type_str)
             .expect("expected a profile document type");
 
-
-
         let signer = CallbackSigner::new(signer_callback).expect("signer");
         let entropy_generator = DefaultEntropyGenerator;
         let entropy = entropy_generator.generate().unwrap();
@@ -313,7 +318,7 @@ pub fn put_document(
         trace!("document_entropy: {:?}", entropy);
         trace!("IdentityPublicKey: {:?}", identity_public_key);
 
-        // recreate the document using the same entroy value as when it is submitted below
+        // recreate the document using the same entropy value as when it is submitted below
         let new_document_result = document_type.create_document_from_data(
             document.properties().into(),
             document.owner_id(),
@@ -332,7 +337,7 @@ pub fn put_document(
             request_settings: RequestSettings {
                 connect_timeout: None,
                 timeout: None,
-                retries: Some(10),
+                retries: None, //Some(2),
                 ban_failed_address: Some(true),
             },
             identity_nonce_stale_time_s: None,
@@ -341,7 +346,6 @@ pub fn put_document(
 
         trace!("Call Document::put_to_platform_and_wait_for_response");
         let document_result = new_document.put_to_platform_and_wait_for_response(
-            //&document,
             &sdk,
             document_type.to_owned_document_type(),
             entropy,

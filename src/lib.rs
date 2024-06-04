@@ -7,6 +7,7 @@ pub mod operators;
 pub mod fetch_document;
 pub mod put;
 pub mod data_contracts;
+mod put_test;
 
 extern crate ferment_macro;
 
