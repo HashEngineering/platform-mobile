@@ -13,7 +13,7 @@ mod put_test;
 extern crate ferment_macro;
 
 use drive_proof_verifier::ContextProvider;
-use platform_value::types::binary_data::BinaryData;
+use platform_value::BinaryData;
 use dash_sdk::platform::types::identity::PublicKeyHash;
 use dpp::bincode::{Decode, Encode};
 use platform_value::{Hash256, Value};

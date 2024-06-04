@@ -7,7 +7,7 @@ use dpp::bincode::config::Limit;
 use dpp::data_contract::DataContract;
 use dpp::document::{Document, DocumentV0Getters};
 use drive::query::{ordering::OrderClause, conditions::WhereClause, conditions::WhereOperator};
-use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
+use platform_value::{Identifier, IdentifierBytes32, Value};
 use tokio::runtime::Builder;
 use crate::config::{Config, DPNS_DATACONTRACT_ID};
 use crate::fetch_identity::setup_logs;

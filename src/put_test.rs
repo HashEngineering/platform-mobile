@@ -10,7 +10,7 @@ use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
-use dpp::document::v0::DocumentV0;
+use dpp::document::DocumentV0;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
 use dpp::identity::{IdentityPublicKey, KeyType, Purpose, SecurityLevel};
 use dpp::ProtocolError;
@@ -175,15 +175,14 @@ fn test_put_documents_for_username() {
             user_fee_increase: None,
         };
 
-        tracing::warn!("Call Document::put_to_platform_and_wait_for_response");
+        tracing::warn!("Call Document::put_to_platform_and_wait_for_response for preorder");
         let first_document_result = new_preorder_document.put_to_platform_and_wait_for_response(
             &sdk,
             preorder_document_type.to_owned_document_type(),
             entropy,
             identity_public_key.clone(),
             Arc::new(data_contract.clone()),
-            &signer,
-            Some(settings)
+            &signer
         ).await.or_else(|err|Err(ProtocolError::Generic(err.to_string())))?;
 
         let domain_document_type = data_contract
@@ -203,15 +202,14 @@ fn test_put_documents_for_username() {
             PlatformVersion::latest()
         )?;
 
-        tracing::warn!("Call Document::put_to_platform_and_wait_for_response");
+        tracing::warn!("Call Document::put_to_platform_and_wait_for_response for domain");
         let second_document_result = new_domain_document.put_to_platform_and_wait_for_response(
             &sdk,
             domain_document_type.to_owned_document_type(),
             entropy2,
             identity_public_key,
             Arc::new(data_contract),
-            &signer,
-            Some(settings)
+            &signer
         ).await.or_else(|err|Err(ProtocolError::Generic(err.to_string())))?;
 
         Ok::<Document, ProtocolError>(second_document_result)

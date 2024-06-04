@@ -1,5 +1,4 @@
-use platform_value::types::identifier::{Identifier, IdentifierBytes32};
-use dpp::identity::identity::Identity;
+use dpp::identity::Identity;
 use dpp::errors::protocol_error::ProtocolError;
 use platform_version::version::PlatformVersion;
 use dpp::document::{Document, DocumentV0Getters};
@@ -61,6 +60,7 @@ use dpp::dashcore::PubkeyHash;
 use drive_proof_verifier::ContextProvider;
 use drive_proof_verifier::error::ContextProviderError;
 use dash_sdk::mock::provider::GrpcContextProvider;
+use platform_value::{Identifier, IdentifierBytes32};
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
 use crate::fetch_document::get_document;
 use crate::provider::CallbackContextProvider;
