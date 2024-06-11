@@ -42,6 +42,12 @@ pub fn Value_clone(value: &Value) -> Value {
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
+pub fn Vec_Value_clone(value_vec: &Vec<Value>) -> Vec<Value> {
+    value_vec.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
 pub fn ValueMap_clone(value_map: &ValueMap) -> ValueMap {
     value_map.clone()
 }

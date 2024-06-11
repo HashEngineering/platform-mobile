@@ -1,13 +1,16 @@
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::fs;
+use std::io::{Read, Write};
 use std::sync::Arc;
 use dash_sdk::platform::Fetch;
+use dash_sdk::platform::transition::put_contract::PutContract;
 use dash_sdk::platform::transition::put_document::PutDocument;
 use dash_sdk::platform::transition::put_settings::PutSettings;
 use dash_sdk::RequestSettings;
 use dashcore::hashes::{Hash, sha256d};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
-use dpp::data_contract::DataContract;
+use dpp::data_contract::{data_contract, DataContract, DataContractFactory, DataContractV0};
+use dpp::data_contract::created_data_contract::CreatedDataContract;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
 use dpp::document::v0::DocumentV0;
@@ -52,8 +55,8 @@ fn test_put_documents_for_username() {
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-test-3".to_string();
-    let full_name = "my-test-3.dash";
+    let label = "my-un1t-test-8".to_string();
+    let full_name = "my-un1t-test-8.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -217,6 +220,93 @@ fn test_put_documents_for_username() {
         Ok::<Document, ProtocolError>(second_document_result)
     }) {
         Ok(doc) => println!("Success!"),
+        Err(err) => panic!("{:?}", err.to_string())
+    };
+}
+
+#[test]
+fn test_put_txmetadata_contract() {
+    let entropy_generator = DefaultEntropyGenerator;
+    let owner_id = Identifier::from_string("6aWnykZbX81RDkSqrW5nwqp9wvaxebibhvk3Te1ARght", Encoding::Base58).expect("identifier");
+    let identity_public_key = IdentityPublicKey::V0(
+        IdentityPublicKeyV0 {
+            id: 1,
+            purpose: Purpose::AUTHENTICATION,
+            security_level: SecurityLevel::HIGH,
+            contract_bounds: None,
+            key_type: KeyType::ECDSA_SECP256K1,
+            read_only: false,
+            data: BinaryData::from_string("Aohxt3g3VO62U4fb+c1Qtx0/CBsauxVpO+ttVTRpAiZt", Encoding::Base64).unwrap(),
+            disabled_at: None,
+        }
+    );
+
+    setup_logs();
+    // Create a new Tokio runtime
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
+
+
+    // Execute the async block using the Tokio runtime
+    match rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        tracing::warn!("Setting up SDK");
+        let sdk = cfg.setup_api().await;
+        tracing::warn!("Finished SDK, {:?}", sdk);
+        tracing::warn!("Set up entropy, data contract and signer");
+
+        let hex_private_key = "63813f400ee02b7e3e1f1c343704895dd145ebd8df5d7b3dc9f8c447b607cac1";
+        let private_key = hex::decode(hex_private_key).expect("Decoding failed");
+        let mut signer = SimpleSigner::default();
+        signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
+        let entropy = entropy_generator.generate().unwrap();
+        trace!("document_entropy: {:?}", entropy);
+
+        let settings = PutSettings {
+            request_settings: RequestSettings {
+                connect_timeout: None,
+                timeout: None,
+                retries: None, //Some(2),
+                ban_failed_address: Some(true),
+            },
+            identity_nonce_stale_time_s: None,
+            user_fee_increase: None,
+        };
+
+        let file_path = "dashwallet-contract.json";
+        let mut file = fs::File::open(file_path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+
+        // Parse the file contents as JSON and convert to platform_value::Value
+        let value: Value = serde_json::from_str(&contents)?;
+        let data_contract_factory = DataContractFactory::new(1).expect("create data contract factory");
+
+        let created_data_contract = data_contract_factory.create_with_value_config(
+            owner_id,
+            0,
+            value,
+            None,
+            None,
+        )?;
+
+        let data_contract = match created_data_contract {
+            CreatedDataContract::V0(dc) => dc.data_contract,
+        };
+
+        let data_contract_result = data_contract.put_to_platform_and_wait_for_response(
+            &sdk,
+            identity_public_key,
+            &signer
+        ).await.or_else(|e| Err(ProtocolError::Generic("failed to create data contract".into())));
+
+        Ok::<DataContract, ProtocolError>(data_contract_result.unwrap())
+    }) {
+        Ok(data_contract) => println!("Success!\n{}: {:?}", data_contract.id(), data_contract),
         Err(err) => panic!("{:?}", err.to_string())
     };
 }
