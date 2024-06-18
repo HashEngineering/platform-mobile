@@ -253,7 +253,10 @@ pub fn put_identity(
         } else {
             Network::Dash
         };
-        let private_key = PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network).expect("private key");
+        let private_key = match PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network) {
+            Ok(pk) => pk,
+            Err(e) => return Err(e.to_string())
+        };
         let signer = CallbackSigner::new(signer_callback).expect("signer");
 
         trace!("Call Identity::put_to_platform_and_wait_for_response");
