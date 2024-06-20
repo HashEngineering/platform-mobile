@@ -9,6 +9,7 @@ pub mod put;
 pub mod custom;
 pub mod data_contracts;
 mod put_test;
+pub mod core;
 
 extern crate ferment_macro;
 

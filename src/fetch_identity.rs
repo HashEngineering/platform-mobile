@@ -56,14 +56,9 @@ pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
 
 
 //use serde::Deserialize;
-use std::{path::PathBuf, str::FromStr, sync::Arc};
 use dpp::dashcore::PubkeyHash;
-use drive_proof_verifier::ContextProvider;
-use drive_proof_verifier::error::ContextProviderError;
-use dash_sdk::mock::provider::GrpcContextProvider;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
 use crate::fetch_document::get_document;
-use crate::provider::CallbackContextProvider;
 
 
 async fn test_identity_read() {
@@ -132,7 +127,11 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
         let cfg = Config::new();
         let id: dpp::prelude::Identifier = id.clone();
         println!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        let sdk = if q != 0 {
+            cfg.setup_api_with_callbacks(q, d).await
+        } else {
+            cfg.setup_api().await
+        };
         println!("Finished SDK, {:?}", sdk);
         println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
@@ -167,7 +166,11 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
         let cfg = Config::new();
         let key_hash = pubkey_hash.clone();
         println!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(q, d).await;
+        let sdk = if q != 0 {
+            cfg.setup_api_with_callbacks(q, d).await
+        } else {
+            cfg.setup_api().await
+        };
         println!("Finished SDK, {:?}", sdk);
         println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, key_hash).await;

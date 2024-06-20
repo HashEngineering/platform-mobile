@@ -98,7 +98,7 @@ impl Signer for CallbackSigner {
             Ok(BinaryData(result[..length as usize].to_vec()))
         } else {
             // Handle error scenario, for example by converting 'length' to an error code
-            Err(ProtocolError::InvalidSigningKeyTypeError("somethign is wrong".to_string())) // Assuming there is a way to convert to ProtocolError
+            Err(ProtocolError::InvalidSigningKeyTypeError("something is wrong.  signer callback returned 0".to_string())) // Assuming there is a way to convert to ProtocolError
         }
     }
 }
@@ -300,7 +300,11 @@ pub fn put_document(
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(quorum_key_callback, d).await;
+        let sdk = if quorum_key_callback != 0 {
+            cfg.setup_api_with_callbacks(quorum_key_callback, d).await
+        } else {
+            cfg.setup_api().await
+        };
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
@@ -352,6 +356,89 @@ pub fn put_document(
             &sdk,
             document_type.to_owned_document_type(),
             entropy,
+            identity_public_key,
+            Arc::new(data_contract),
+            &signer,
+            Some(settings)
+        ).await;
+
+        document_result.map_err(|err| err.to_string())
+    })
+}
+
+#[ferment_macro::export]
+pub fn replace_document(
+    document: Document,
+    data_contract_id: Identifier,
+    document_type_str: String,
+    identity_public_key: IdentityPublicKey,
+    block_height: BlockHeight,
+    core_block_height: CoreBlockHeight,
+    signer_callback: u64,
+    quorum_key_callback: u64,
+    d: u64
+) -> Result<Document, String> {
+
+    setup_logs();
+    // Create a new Tokio runtime
+    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = cfg.setup_api_with_callbacks(quorum_key_callback, d).await;
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up entropy, data contract and signer");
+
+        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
+            Ok(Some(contract)) => contract,
+            Ok(None) => return Err("no contract".to_string()),
+            Err(e) => return Err(e.to_string())
+        };
+
+        let document_type = data_contract
+            .document_type_for_name(&document_type_str)
+            .expect("expected a profile document type");
+
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+
+        trace!("IdentityPublicKey: {:?}", identity_public_key);
+        //
+        // let new_document_result = document_type.create_document_with_prevalidated_properties(
+        //     document.id(),
+        //     document.owner_id(),
+        //     block_height,
+        //     core_block_height,
+        //     document.properties().clone(),
+        //     PlatformVersion::latest()
+        // );
+        //
+        // let new_document = match new_document_result {
+        //     Ok(doc) => doc,
+        //     Err(e) => return Err(e.to_string())
+        // };
+
+        let settings = PutSettings {
+            request_settings: RequestSettings {
+                connect_timeout: None,
+                timeout: None,
+                retries: Some(3),
+                ban_failed_address: Some(true),
+            },
+            identity_nonce_stale_time_s: None,
+            user_fee_increase: None,
+        };
+
+        trace!("Call Document::put_to_platform_and_wait_for_response");
+        let document_result = document.replace_on_platform_and_wait_for_response(
+            &sdk,
+            document_type.to_owned_document_type(),
             identity_public_key,
             Arc::new(data_contract),
             &signer,
