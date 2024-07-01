@@ -501,18 +501,18 @@ fn docs_query_id_test() {
 #[test]
 fn docs_full_query_test() {
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
-    let docsResult = fetch_documents_with_query(&contract_id, &"domain".to_string(),
-                                          vec![WhereClause {
+    let docs_result = fetch_documents_with_query(&contract_id, &"domain".to_string(),
+                                                 vec![WhereClause {
                                               field: "normalizedLabel".to_string(),
                                               operator: WhereOperator::Equal,
                                               value: Value::Null,
                                           }],
-                                          vec![],
-                                          100,
-                                          None,
-                                          0, 0);
+                                                 vec![],
+                                                 100,
+                                                 None,
+                                                 0, 0);
 
-    match docsResult {
+    match docs_result {
         Ok(docs) => {
             println!("query results");
             for document in docs {
