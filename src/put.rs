@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::convert::identity;
 use std::io;
 use std::io::{Cursor, Write};
 use std::num::NonZeroUsize;
@@ -49,6 +50,132 @@ use simple_signer::signer::SimpleSigner;
 use crate::config::Config;
 use crate::fetch_identity::setup_logs;
 use crate::provider::Cache;
+
+use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
+use dapi_grpc::platform::v0::wait_for_state_transition_result_response::{Version, wait_for_state_transition_result_response_v0};
+use dpp::state_transition::StateTransition;
+
+//use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
+pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
+    match &response.version {
+        Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(responseV0)) => {
+            return match &responseV0.result {
+                Some(wait_for_state_transition_result_response_v0::Result::Error(error)) => Some(&error),
+                _ => None
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+pub async fn wait_for_response_concurrent(
+    new_preorder_document: &Document,
+    sdk: &Sdk,
+    preorder_transition: StateTransition,
+    data_contract: DataContract,
+    settings: PutSettings
+) -> Result<Document, dash_sdk::Error> {
+    let mut handles = vec![];
+
+    for i in 0..5 {
+        let new_preorder_document = new_preorder_document.clone();
+        let sdk = sdk.clone();
+        let preorder_transition = preorder_transition.clone();
+        let data_contract = Arc::new(data_contract.clone());
+        let settings = Some(settings.clone());
+
+        tracing::info!("spawning thread {} of 5", i + 1);
+        let handle = tokio::spawn(async move {
+            <dpp::document::Document as PutDocument<SimpleSigner>>::wait_for_response::<'_, '_, '_>(
+                &new_preorder_document,
+                &sdk,
+                preorder_transition,
+                data_contract,
+                settings
+            ).await
+        });
+
+        handles.push(handle);
+    }
+
+    let mut success_count = 0;
+    let mut last_error: Option<Error> = None;
+
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(document)) => {
+                success_count += 1;
+                if success_count >= 3 {
+                    tracing::warn!("wait_for_response_concurrent, success: {:?}", document);
+                    return Ok(document);
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::warn!("wait_for_response_concurrent, response error: {:?}", e);
+                last_error = Some(Error::from(e));
+            }
+            Err(e) => {
+                tracing::warn!("wait_for_response_concurrent, join error: {:?}", e);
+                last_error = Some(Error::Generic(e.to_string()));
+            }
+        }
+    }
+    tracing::warn!("wait_for_response_concurrent, all requests failed");
+
+    Err(last_error.unwrap_or(Error::Generic("All requests failed".to_string())))
+}
+
+pub async fn wait_for_response_concurrent_identity(
+    identity: &Identity,
+    sdk: &Sdk,
+    state_transition: &StateTransition,
+) -> Result<Identity, dash_sdk::Error> {
+    let mut handles = vec![];
+
+    for i in 0..5 {
+        let sdk = sdk.clone();
+        //let settings = Some(settings.clone());
+        let identity = identity.clone();
+        let state_transition = state_transition.clone();
+        tracing::info!("spawning thread {} of 5", i + 1);
+        let handle = tokio::spawn(async move {
+            <Identity as PutIdentity<SimpleSigner>>::wait_for_response::<'_, '_, '_, '_>(
+                &identity,
+                &sdk,
+                &state_transition
+            ).await
+        });
+
+        handles.push(handle);
+    }
+
+    let mut success_count = 0;
+    let mut last_error: Option<Error> = None;
+
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(identity)) => {
+                success_count += 1;
+                if success_count >= 3 {
+                    tracing::warn!("wait_for_response_concurrent, success: {:?}", identity);
+                    return Ok(identity);
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::warn!("wait_for_response_concurrent, response error: {:?}", e);
+                last_error = Some(Error::from(e));
+            }
+            Err(e) => {
+                tracing::warn!("wait_for_response_concurrent, join error: {:?}", e);
+                last_error = Some(Error::Generic(e.to_string()));
+            }
+        }
+    }
+    tracing::warn!("wait_for_response_concurrent, all requests failed");
+
+    Err(last_error.unwrap_or(Error::Generic("All requests failed".to_string())))
+}
 
 //#[ferment_macro::export]
 pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
@@ -260,17 +387,37 @@ pub fn put_identity(
         let signer = CallbackSigner::new(signer_callback).expect("signer");
 
         trace!("Call Identity::put_to_platform_and_wait_for_response");
-        let identity_result = Identity::put_to_platform_and_wait_for_response(
+        // TODO: this needs to be split up and call wait 5x
+        // let identity_result = Identity::put_to_platform_and_wait_for_response(
+        //     &identity,
+        //     &sdk,
+        //     asset_lock_proof.into(),
+        //     &private_key,
+        //     &signer).await;
+
+        let state_transition_result = Identity::put_to_platform(
             &identity,
             &sdk,
             asset_lock_proof.into(),
             &private_key,
             &signer).await;
 
-        match identity_result {
+        let state_transition = match state_transition_result {
+            Ok(st) => st,
+            Err(err) => return Err(err.to_string())
+        };
+
+        let identity_result = wait_for_response_concurrent_identity(
+            &identity,
+            &sdk,
+            &state_transition
+        ).await;
+
+        return match identity_result {
             Ok(identity) => Ok(identity),
-            Err(err) => Err(err.to_string())
+            Err(e) => Err(e.to_string())
         }
+
     })
 }
 
@@ -344,7 +491,7 @@ pub fn put_document(
             request_settings: RequestSettings {
                 connect_timeout: None,
                 timeout: None,
-                retries: None, //Some(2),
+                retries: Some(3),
                 ban_failed_address: Some(true),
             },
             identity_nonce_stale_time_s: None,
@@ -352,17 +499,36 @@ pub fn put_document(
         };
 
         trace!("Call Document::put_to_platform_and_wait_for_response");
-        let document_result = new_document.put_to_platform_and_wait_for_response(
+        // let document_result = new_document.put_to_platform_and_wait_for_response(
+        //     &sdk,
+        //     document_type.to_owned_document_type(),
+        //     entropy,
+        //     identity_public_key,
+        //     Arc::new(data_contract),
+        //     &signer,
+        //     Some(settings)
+        // ).await;
+
+        // document_result.map_err(|err| err.to_string())
+
+        let transition = new_document.put_to_platform(
             &sdk,
             document_type.to_owned_document_type(),
-            entropy,
-            identity_public_key,
-            Arc::new(data_contract),
+            entropy.clone(),
+            identity_public_key.clone(),
             &signer,
             Some(settings)
-        ).await;
+        ).await.or_else(|err|Err(err.to_string()))?;
 
-        document_result.map_err(|err| err.to_string())
+        let result_document = wait_for_response_concurrent(
+            &new_document,
+            &sdk,
+            transition.clone(),
+            data_contract.clone(),
+            settings
+        ).await.or_else(|err|Err(err.to_string()))?;
+
+        Ok(result_document)
     })
 }
 
@@ -436,15 +602,32 @@ pub fn replace_document(
         };
 
         trace!("Call Document::put_to_platform_and_wait_for_response");
-        let document_result = document.replace_on_platform_and_wait_for_response(
-            &sdk,
-            document_type.to_owned_document_type(),
-            identity_public_key,
-            Arc::new(data_contract),
-            &signer,
-            Some(settings)
-        ).await;
+        // let document_result = document.replace_on_platform_and_wait_for_response(
+        //     &sdk,
+        //     document_type.to_owned_document_type(),
+        //     identity_public_key,
+        //     Arc::new(data_contract),
+        //     &signer,
+        //     Some(settings)
+        // ).await;
 
-        document_result.map_err(|err| err.to_string())
+        let transition = document.replace_on_platform(
+                &sdk,
+                document_type.to_owned_document_type(),
+                identity_public_key,
+                &signer,
+                Some(settings),
+            )
+            .await.or_else(|err|Err(err.to_string()))?;
+
+        let result_document = wait_for_response_concurrent(
+            &document,
+            &sdk,
+            transition.clone(),
+            data_contract.clone(),
+            settings
+        ).await.or_else(|err|Err(err.to_string()))?;
+
+        Ok(result_document)
     })
 }
