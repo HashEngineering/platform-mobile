@@ -9,9 +9,9 @@ use dpp::identity::v0::IdentityV0;
 use dpp::identity::identity_public_key::contract_bounds::ContractBounds;
 use dpp::identity::identity_public_key::{KeyID, TimestampMillis};
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
-use dpp::identity::KeyType::ECDSA_SECP256K1;
-use dpp::identity::Purpose::AUTHENTICATION;
-use dpp::identity::SecurityLevel::MASTER;
+use dpp::identity::identity_public_key::KeyType::ECDSA_SECP256K1;
+use dpp::identity::identity_public_key::Purpose::AUTHENTICATION;
+use dpp::identity::identity_public_key::SecurityLevel::MASTER;
 use platform_value::IdentifierBytes32;
 use platform_value::types::identifier::Identifier;
 use platform_version::version::LATEST_PLATFORM_VERSION;
@@ -125,33 +125,37 @@ pub fn get_identity_contract_bounds(identifier: Identifier, contract_identifier:
     Identity::V0(identity)
 }
 
-
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Identifier_clone(identifier: &Identifier) -> Identifier {
+pub fn Identifier_clone(identifier: Identifier) -> Identifier {
     identifier.clone()
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Identity_clone(identity: &Identity) -> Identity {
+pub fn Identity_clone(identity: Identity) -> Identity {
     identity.clone()
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn IdentityV0_clone(identity: &IdentityV0) -> IdentityV0 {
+pub fn IdentityV0_clone(identity: IdentityV0) -> IdentityV0 {
     identity.clone()
 }
 
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn IdentityPublicKey_clone(identity_public_key: &IdentityPublicKey) -> IdentityPublicKey {
+pub fn IdentityPublicKey_clone(identity_public_key: IdentityPublicKey) -> IdentityPublicKey {
     identity_public_key.clone()
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn IdentityPublicKeyV0_clone(identity_public_key: &IdentityPublicKeyV0) -> IdentityPublicKeyV0 {
+pub fn IdentityPublicKeyV0_clone(identity_public_key: IdentityPublicKeyV0) -> IdentityPublicKeyV0 {
     identity_public_key.clone()
 }
-
+#[allow(non_snake_case)]
 #[ferment_macro::export]
 pub fn std_collections_Map_keys_dpp_identity_identity_public_key_KeyID_values_dpp_identity_identity_public_key_IdentityPublicKey_clone(
     public_keys: BTreeMap<KeyID, IdentityPublicKey>

@@ -54,6 +54,11 @@ impl Drop for InstantLock {
     }
 }
 
+// #[ferment_macro::export]
+// pub fn get_instantlock(instant_lock: dashcore::ephemerealdata::instant_lock::InstantLock) -> dashcore::ephemerealdata::instant_lock::InstantLock {
+//     instant_lock.clone()
+// }
+
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(dashcore::blockdata::transaction::Transaction)]
 #[derive(Clone)]

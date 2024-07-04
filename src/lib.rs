@@ -1,7 +1,7 @@
 pub mod fetch_identity;
 pub mod identity;
-mod config;
-mod provider;
+pub mod config;
+pub mod provider;
 pub mod clone;
 pub mod operators;
 pub mod fetch_document;

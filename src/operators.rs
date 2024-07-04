@@ -2,13 +2,16 @@ use platform_value::Value;
 use serde::Serialize;
 use serde_json::to_string;
 use sha2::{Sha256, Digest};
+
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Value_eq(a: &Value, b: &Value) -> bool {
+pub fn Value_eq(a: Value, b: Value) -> bool {
     a == b
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Value_hash(a: &Value) -> i32 {
+pub fn Value_hash(a: Value) -> i32 {
     let serialized = to_string(&a).unwrap();
     // Create a Sha256 object
     let mut hasher = Sha256::new();
@@ -29,5 +32,5 @@ pub fn Value_hash(a: &Value) -> i32 {
 #[test]
 fn test() {
     let a = Value::I8(1);
-    println!("hashcode {} = {}", a, Value_hash(&a))
+    println!("hashcode {} = {}", a, Value_hash(a.clone()))
 }

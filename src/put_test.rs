@@ -13,13 +13,14 @@ use dash_sdk::{RequestSettings, Sdk};
 use dash_sdk::dapi_client::DapiClientError;
 use dashcore::hashes::{Hash, sha256d};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
-use dpp::data_contract::{data_contract, DataContract, DataContractFactory, DataContractV0};
+use dpp::data_contract::{DataContract, DataContractFactory};
+//use dpp::data_contract::v0::data_contract::DataContractV0;
 use dpp::data_contract::created_data_contract::CreatedDataContract;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
 use dpp::document::v0::DocumentV0;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
-use dpp::identity::{IdentityPublicKey, KeyType, Purpose, SecurityLevel};
+use dpp::identity::identity_public_key::{IdentityPublicKey, KeyType, Purpose, SecurityLevel};
 use dpp::ProtocolError;
 use dpp::state_transition::StateTransition;
 use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
@@ -34,6 +35,9 @@ use crate::config::Config;
 use crate::fetch_identity::setup_logs;
 use crate::put::{get_wait_result_error, wait_for_response_concurrent};
 use dash_sdk::Error;
+use crate::config::RustSdk;
+use crate::config::create_sdk;
+
 fn get_salted_domain_hash(
     pre_order_salt_raw: &[u8],
     full_name: &str
@@ -65,9 +69,9 @@ fn test_put_documents_for_username() {
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-unit-test-4".to_string();
-    let normalized_label = "my-un1t-test-4".to_string();
-    let full_name = "my-un1t-test-4.dash";
+    let label = "my-unit-test-9".to_string();
+    let normalized_label = "my-un1t-test-9".to_string();
+    let full_name = "my-un1t-test-9.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -136,12 +140,8 @@ fn test_put_documents_for_username() {
     );
 
     setup_logs();
-    // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
+    let rust_sdk = create_sdk(0, 0);
+    let rt = unsafe { rust_sdk.entry_point.get_runtime() };
 
 
     // Execute the async block using the Tokio runtime
@@ -149,7 +149,7 @@ fn test_put_documents_for_username() {
         // Your async code here
         let cfg = Config::new();
         tracing::warn!("Setting up SDK");
-        let sdk = cfg.setup_api().await;
+        let sdk = rust_sdk.entry_point.get_sdk();
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 

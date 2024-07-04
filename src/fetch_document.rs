@@ -3,13 +3,14 @@ use std::sync::Arc;
 use dash_sdk::platform::{DocumentQuery, Fetch, FetchMany};
 use dapi_grpc::platform::v0::get_documents_request::get_documents_request_v0::Start;
 use dash_sdk::platform::proto::GetDataContractRequest;
+use dash_sdk::Sdk;
 use dpp::bincode::config::Limit;
 use dpp::data_contract::DataContract;
 use dpp::document::{Document, DocumentV0Getters};
 use drive::query::{ordering::OrderClause, conditions::WhereClause, conditions::WhereOperator};
 use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
-use tokio::runtime::Builder;
-use crate::config::{Config, DPNS_DATACONTRACT_ID};
+use tokio::runtime::{Builder, Runtime};
+use crate::config::{Config, DPNS_DATACONTRACT_ID, RustSdk, create_sdk};
 use crate::fetch_identity::setup_logs;
 
 #[ferment_macro::export]
@@ -23,17 +24,17 @@ pub fn document_to_string(document: Document)-> String {
 }
 
 #[ferment_macro::export]
-pub fn get_documents(identifier: &Identifier, document_type: &String, q: u64, d: u64)-> Vec<Document> {
+pub fn get_documents(identifier: Identifier, document_type: String, q: u64, d: u64)-> Vec<Document> {
     documents_with_callbacks(identifier, document_type, q, d)
 }
 
 #[ferment_macro::export]
-pub fn get_domain_document(identifier: &Identifier, q: u64, d: u64)-> Vec<Document> {
+pub fn get_domain_document(identifier: Identifier, q: u64, d: u64)-> Vec<Document> {
     dpns_domain_by_id(identifier, q, d)
 }
 
 #[ferment_macro::export]
-pub fn get_domain_document_starts_with(starts_with: &String, q: u64, d: u64)-> Vec<Document> {
+pub fn get_domain_document_starts_with(starts_with: String, q: u64, d: u64)-> Vec<Document> {
     dpns_domain_starts_with(starts_with, q, d)
 }
 
@@ -45,15 +46,15 @@ pub fn get_domain_document_starts_with(starts_with: &String, q: u64, d: u64)-> V
 // |                                   |
 // |                                   required by a bound introduced by this call
 
-// #[ferment_macro::export]
-// pub fn get_documents_tree(
-//     identifier: &Identifier,
-//     document_type: &String,
-//     q: u64,
-//     d: u64
-// ) -> BTreeMap<Identifier, Option<Document>> {
-//     documents_with_callbacks_tree(identifier, document_type, q, d)
-// }
+#[ferment_macro::export]
+pub fn get_documents_tree(
+    identifier: Identifier,
+    document_type: String,
+    q: u64,
+    d: u64
+) -> BTreeMap<Identifier, Option<Document>> {
+    documents_with_callbacks_tree(identifier, document_type, q, d)
+}
 
 #[ferment_macro::export]
 pub fn get_document_with_callbacks(quorum_public_key_callback: u64,
@@ -172,8 +173,8 @@ fn document_read_with_callbacks(quorum_public_key_callback: u64,
     })
 }
 
-fn documents_with_callbacks(contract_id: &Identifier,
-                                document_type: &String,
+fn documents_with_callbacks(contract_id: Identifier,
+                                document_type: String,
                                 quorum_public_key_callback: u64,
                                 data_contract_callback: u64) -> Vec<Document> {
     setup_logs();
@@ -236,8 +237,8 @@ impl Into<Start> for StartPoint {
     }
 }
 #[ferment_macro::export]
-pub fn fetch_documents_with_query(contract_id: &Identifier,
-                            document_type: &String,
+pub fn fetch_documents_with_query(contract_id: Identifier,
+                            document_type: String,
                             where_clauses: Vec<WhereClause>,
                             order_clauses: Vec<OrderClause>,
                             limit: u32,
@@ -270,7 +271,7 @@ pub fn fetch_documents_with_query(contract_id: &Identifier,
         let contract = match contract_result {
             Ok(Some(data_contract)) => Arc::new(data_contract),
             Ok(None) => return Err("data contract not found".to_string()),
-            Err(E) => return Err("fetch data contract error".to_string())
+            Err(e) => return Err("fetch data contract error".to_string())
         };
 
         tracing::warn!("fetching many...");
@@ -308,7 +309,163 @@ pub fn fetch_documents_with_query(contract_id: &Identifier,
     })
 }
 
-fn dpns_domain_starts_with(starts_with: &String,
+// #[ferment_macro::export]
+// pub unsafe fn fetch_documents_with_query_and_sdk(
+//                                   rust_sdk: Arc<RustSdk>,
+//                                   contract_id: Identifier,
+//                                   document_type: String,
+//                                   where_clauses: Vec<WhereClause>,
+//                                   order_clauses: Vec<OrderClause>,
+//                                   limit: u32,
+//                                   start: Option<StartPoint>
+// ) -> Result<Vec<Document>, String> {
+//     setup_logs();
+//     tracing::warn!("sdk: {:?}", rust_sdk);
+//
+//     //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+//     let rt = Arc::from_raw(rust_sdk.runtime as *const Runtime);
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//         let sdk = Arc::from_raw(rust_sdk.sdk_pointer as * const Sdk);
+//
+//         let data_contract_id = contract_id;
+//         tracing::warn!("using existing data contract id and fetching...");
+//         // let contract = Arc::new(
+//         //     DataContract::fetch(&sdk, data_contract_id.clone())
+//         //         .await
+//         //         .expect("fetch data contract")
+//         //         .expect("data contract not found"),
+//         // );
+//
+//         let contract_fetch_result =
+//             DataContract::fetch(&sdk, data_contract_id.clone())
+//                 .await;
+//         tracing::warn!("contract_fetch_result: {:?}", contract_fetch_result);
+//         let contract_result = match contract_fetch_result {
+//             Ok(contract) => contract,
+//             Err(e) => return Err(e.to_string())
+//         };
+//         tracing::warn!("contract_result: {:?}", contract_result);
+//
+//         let contract = match contract_result {
+//             Some(c) => Arc::new(c),
+//             None => return Err("contract not found".to_string())
+//         };
+//
+//         tracing::warn!("fetching many...");
+//         // Fetch multiple documents so that we get document ID
+//         let mut all_docs_query =
+//             DocumentQuery::new(Arc::clone(&contract), &document_type)
+//                 .expect("create SdkDocumentQuery");
+//         for wc in where_clauses {
+//             all_docs_query = all_docs_query.with_where(wc);
+//         }
+//         for oc in order_clauses {
+//             all_docs_query = all_docs_query.with_order_by(oc);
+//         }
+//         all_docs_query.limit = limit;
+//         all_docs_query.start = match start {
+//             Some(s) => Some(s.into()),
+//             None => None
+//         };
+//         tracing::warn!("fetching many... query created");
+//         let docs = Document::fetch_many(&sdk, all_docs_query)
+//             .await;
+//         match docs {
+//             Ok(docs) => {
+//                 tracing::warn!("convert to Vec");
+//                 let into_vec = |map: BTreeMap<Identifier, Option<Document>>| {
+//                     map.into_iter()
+//                         .filter_map(|(_key, value)| value)
+//                         .collect::<Vec<Document>>()
+//                 };
+//
+//                 Ok(into_vec(docs))
+//             }
+//             Err(e) => Err(e.to_string())
+//         }
+//     })
+// }
+
+
+#[ferment_macro::export]
+pub unsafe fn fetch_documents_with_query_and_sdk(
+                                  rust_sdk: *mut RustSdk,
+                                  contract_id: Identifier,
+                                  document_type: String,
+                                  where_clauses: Vec<WhereClause>,
+                                  order_clauses: Vec<OrderClause>,
+                                  limit: u32,
+                                  start: Option<StartPoint>
+) -> Result<Vec<Document>, String> {
+    setup_logs();
+
+    let rt = (*rust_sdk).entry_point.get_runtime();
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let sdk = (*rust_sdk).entry_point.get_sdk();
+
+        let data_contract_id = contract_id;
+        tracing::warn!("using existing data contract id and fetching...");
+        // let contract = Arc::new(
+        //     DataContract::fetch(&sdk, data_contract_id.clone())
+        //         .await
+        //         .expect("fetch data contract")
+        //         .expect("data contract not found"),
+        // );
+
+        let contract_fetch_result =
+            DataContract::fetch(&sdk, data_contract_id.clone())
+                .await;
+        tracing::warn!("contract_fetch_result: {:?}", contract_fetch_result);
+        let contract_result = match contract_fetch_result {
+            Ok(contract) => contract,
+            Err(e) => return Err(e.to_string())
+        };
+        tracing::warn!("contract_result: {:?}", contract_result);
+
+        let contract = match contract_result {
+            Some(c) => Arc::new(c),
+            None => return Err("contract not found".to_string())
+        };
+
+        tracing::warn!("fetching many...");
+        // Fetch multiple documents so that we get document ID
+        let mut all_docs_query =
+            DocumentQuery::new(Arc::clone(&contract), &document_type)
+                .expect("create SdkDocumentQuery");
+        for wc in where_clauses {
+            all_docs_query = all_docs_query.with_where(wc);
+        }
+        for oc in order_clauses {
+            all_docs_query = all_docs_query.with_order_by(oc);
+        }
+        all_docs_query.limit = limit;
+        all_docs_query.start = match start {
+            Some(s) => Some(s.into()),
+            None => None
+        };
+        tracing::warn!("fetching many... query created");
+        let docs = Document::fetch_many(&sdk, all_docs_query)
+            .await;
+        match docs {
+            Ok(docs) => {
+                tracing::warn!("convert to Vec");
+                let into_vec = |map: BTreeMap<Identifier, Option<Document>>| {
+                    map.into_iter()
+                        .filter_map(|(_key, value)| value)
+                        .collect::<Vec<Document>>()
+                };
+
+                Ok(into_vec(docs))
+            }
+            Err(e) => Err(e.to_string())
+        }
+    })
+}
+fn dpns_domain_starts_with(starts_with: String,
                             quorum_public_key_callback: u64,
                             data_contract_callback: u64) -> Vec<Document> {
     setup_logs();
@@ -369,7 +526,7 @@ fn dpns_domain_starts_with(starts_with: &String,
     })
 }
 
-fn dpns_domain_by_id(unique_id: &Identifier,
+fn dpns_domain_by_id(unique_id: Identifier,
       quorum_public_key_callback: u64,
       data_contract_callback: u64) -> Vec<Document> {
     setup_logs();
@@ -422,8 +579,8 @@ fn dpns_domain_by_id(unique_id: &Identifier,
     })
 }
 
-fn documents_with_callbacks_tree(contract_id: &Identifier,
-                            document_type: &String,
+fn documents_with_callbacks_tree(contract_id: Identifier,
+                            document_type: String,
                             quorum_public_key_callback: u64,
                             data_contract_callback: u64) -> BTreeMap<Identifier, Option<Document>> {
     setup_logs();
@@ -468,7 +625,7 @@ fn documents_with_callbacks_tree(contract_id: &Identifier,
 #[test]
 fn docs_test() {
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
-    let docs = documents_with_callbacks(&contract_id, &"domain".to_string(), 0, 0);
+    let docs = documents_with_callbacks(contract_id, "domain".to_string(), 0, 0);
 
     for document in docs {
         // Use `document` here
@@ -479,7 +636,7 @@ fn docs_test() {
 #[test]
 fn docs_query_test() {
    //let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
-    let docs = dpns_domain_starts_with(&"dq-".to_string(), 0, 0);
+    let docs = dpns_domain_starts_with("dq-".to_string(), 0, 0);
 
     for document in docs {
         // Use `document` here
@@ -490,7 +647,7 @@ fn docs_query_test() {
 #[test]
 fn docs_query_id_test() {
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
-    let docs = dpns_domain_by_id(&contract_id, 0, 0);
+    let docs = dpns_domain_by_id(contract_id, 0, 0);
 
     for document in docs {
         // Use `document` here
@@ -501,7 +658,7 @@ fn docs_query_id_test() {
 #[test]
 fn docs_full_query_test() {
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
-    let docs_result = fetch_documents_with_query(&contract_id, &"domain".to_string(),
+    let docs_result = fetch_documents_with_query(contract_id, "domain".to_string(),
                                                  vec![WhereClause {
                                               field: "normalizedLabel".to_string(),
                                               operator: WhereOperator::Equal,
@@ -511,6 +668,35 @@ fn docs_full_query_test() {
                                                  100,
                                                  None,
                                                  0, 0);
+
+    match docs_result {
+        Ok(docs) => {
+            println!("query results");
+            for document in docs {
+                // Use `document` here
+                println!("{:?}", document); // Assuming Document implements Debug
+            }
+        }
+        Err(e) => panic!("{}", e)
+    }
+}
+
+#[test]
+fn docs_full_query_sdk_test() {
+    let mut sdk = create_sdk(0, 0);
+    tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let docs_result = unsafe {
+        fetch_documents_with_query_and_sdk(
+            &mut sdk,
+            contract_id,
+            "domain".to_string(),
+            vec![],
+            vec![],
+            100,
+            None
+        )
+    };
 
     match docs_result {
         Ok(docs) => {

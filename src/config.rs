@@ -1,3 +1,4 @@
+use std::ffi::c_void;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use platform_value::{Identifier, IdentifierBytes32};
@@ -8,10 +9,15 @@ use dpp::data_contract::DataContract;
 use drive_proof_verifier::ContextProvider;
 use drive_proof_verifier::error::ContextProviderError;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use dash_sdk::mock::provider::GrpcContextProvider;
+use dash_sdk::Sdk;
+use ferment_interfaces::boxed;
+use tokio::runtime::{Builder, Runtime};
+use crate::fetch_identity::setup_logs;
 use crate::provider::CallbackContextProvider;
 
 /// Existing document ID
@@ -69,6 +75,8 @@ pub const ADDRESS_LIST: [&str; 29] = [
     "54.213.204.85"
 ];
 
+
+
 /// Configuration for dash-platform-sdk.
 ///
 /// Content of this configuration is loaded from environment variables or `${CARGO_MANIFEST_DIR}/.env` file
@@ -124,6 +132,42 @@ pub struct Config {
     /// in [`existing_data_contract_id`](Config::existing_data_contract_id).
     #[serde(default = "Config::default_document_id")]
     pub existing_document_id: Identifier,
+}
+
+//#[ferment_macro::opaque]
+pub trait EntryPoint {
+    fn get_runtime(&self) -> &Runtime;
+    fn get_sdk(&self) -> &Arc<Sdk>;
+}
+
+//#[ferment_macro::opaque]
+pub struct DashSdk {
+    pub (crate) config: Config,
+    pub (crate) runtime: Runtime,
+    pub (crate) sdk: Arc<Sdk>
+}
+
+impl EntryPoint for DashSdk {
+    fn get_runtime(&self) -> &Runtime {
+        &self.runtime
+    }
+    fn get_sdk(&self) -> &Arc<Sdk> {
+        &self.sdk
+    }
+}
+
+#[ferment_macro::opaque]
+pub struct RustSdk {
+    pub entry_point: Box<dyn EntryPoint>
+}
+
+impl RustSdk {
+    fn get_runtime(&self) -> &Runtime {
+        &self.entry_point.get_runtime()
+    }
+    fn get_sdk(&self) -> &Arc<Sdk> {
+        &self.entry_point.get_sdk()
+    }
 }
 
 impl Config {
@@ -276,4 +320,150 @@ impl Config {
             .join("tests")
             .join("vectors")
     }
+}
+
+// #[ferment_macro::export]
+// pub fn create_dashsharedcore(quorum_public_key_callback: u64,
+//                   data_contract_callback: u64) -> DashSharedCore {
+//     return DashSharedCore::new(std::ptr::null())
+// }
+
+#[ferment_macro::export]
+pub fn create_sdk(
+    quorum_public_key_callback: u64,
+    data_contract_callback: u64
+) -> RustSdk {
+    setup_logs();
+    let rt = Builder::new_current_thread()
+        .enable_all() // Enables all I/O and time drivers
+        .build()
+        .expect("Failed to create a runtime");
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let cfg = Config::new();
+        let sdk = if quorum_public_key_callback != 0 {
+            // use the callbacks to obtain quorum public keys
+            cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+        } else {
+            // use Dash Core for quorum public keys
+            cfg.setup_api().await
+        };
+        RustSdk {
+            entry_point: Box::new(DashSdk {
+                    config: cfg,
+                    runtime: Builder::new_current_thread()
+                        .thread_name("dask-sdk")
+                        .enable_all() // Enables all I/O and time drivers
+                        .build()
+                        .expect("Failed to create a runtime"),
+                    sdk: sdk
+                }
+            )
+        }
+    })
+}
+
+// #[ferment_macro::export]
+// #[derive(Clone, Debug)]
+// pub struct RustSdk {
+//     // pub sdk_pointer: *const c_void,
+//     // pub runtime: *const c_void
+//     pub sdk_pointer: u64,
+//     pub runtime: u64
+// }
+//
+// #[ferment_macro::export]
+// pub fn create_rust_sdk(
+//     quorum_public_key_callback: u64,
+//     data_contract_callback: u64
+// ) -> Arc<RustSdk> {
+//     let rt = Builder::new_current_thread()
+//         .enable_all() // Enables all I/O and time drivers
+//         .build()
+//         .expect("Failed to create a runtime");
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//         let cfg = Config::new();
+//         let sdk = cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await;
+//
+//         let rt = Builder::new_current_thread()
+//             .enable_all() // Enables all I/O and time drivers
+//             .build()
+//             .expect("Failed to create a runtime");
+//
+//         let rust_sdk = Arc::new(RustSdk {
+//             // sdk_pointer: Arc::into_raw(sdk) as *const c_void,
+//             // runtime: Arc::into_raw(Arc::new(rt)) as *const c_void
+//             sdk_pointer: Arc::into_raw(sdk) as u64,
+//             runtime: Arc::into_raw(Arc::new(rt)) as u64
+//         });
+//         tracing::warn!("after creating sdk: {:?}", rust_sdk);
+//         return rust_sdk.into()
+//     })
+// }
+//
+// #[ferment_macro::export]
+// pub fn destroy_rust_sdk(rust_sdk: Arc<RustSdk>) {
+//     let ptr = rust_sdk.sdk_pointer as *mut Arc<Sdk>;
+//     if !ptr.is_null() {
+//         unsafe {
+//             Box::from_raw(ptr);
+//         }
+//     }
+//     let ptr2 = rust_sdk.runtime as *mut Arc<Runtime>;
+//     if !ptr2.is_null() {
+//         unsafe {
+//             Box::from_raw(ptr2);
+//         }
+//     }
+// }
+
+// #[ferment_macro::opaque]
+// pub type BlockHashByHeight = unsafe extern "C" fn(u32) -> [u8; 32];
+
+// #[ferment_macro::opaque]
+// pub struct FFICoreProvider {
+//     pub block_hash_by_height: BlockHashByHeight,
+// }
+//
+// impl CoreProvider for FFICoreProvider {
+//     fn get_block_hash_by_height(&self, _height: u32) -> [u8; 32] {
+//         [0u8; 32]
+//         // (self.block_hash_by_height)(height)
+//     }
+// }
+//
+// #[ferment_macro::opaque]
+// pub trait CoreProvider {
+//     fn get_block_hash_by_height(&self, height: u32) -> [u8; 32];
+// }
+// #[ferment_macro::opaque]
+// pub struct DashSharedCore {
+//     pub processor: *mut Processor,
+//     pub cache: BTreeMap<String, String>,
+//     pub context: *const std::os::raw::c_void,
+// }
+//
+// #[ferment_macro::opaque]
+// impl DashSharedCore {
+//     pub fn new(
+//         context: *const std::os::raw::c_void) -> Self {
+//         Self {
+//             processor: boxed(Processor { chain_id: Box::new(Config::new()) }),
+//             cache: Default::default(),
+//             context
+//         }
+//     }
+// }
+//
+// #[ferment_macro::opaque]
+// pub struct Processor {
+//     pub chain_id: Box<dyn MyConfig>,
+// }
+
+#[test]
+fn test_dash_sdk() {
+    let my_sdk = create_sdk(0, 0);
 }
