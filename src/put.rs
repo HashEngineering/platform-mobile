@@ -16,7 +16,8 @@ use dashcore::key::Secp256k1;
 use dashcore::secp256k1::{Message, SecretKey};
 use dashcore::signer::sign;
 use dpp::bincode::{Decode, Encode};
-use dpp::dashcore::{InstantLock, Network, OutPoint, PrivateKey, Transaction, Txid};
+use dashcore::blockdata::transaction::OutPoint;
+use dpp::dashcore::{InstantLock, Network, PrivateKey, Transaction, Txid};
 use dpp::dashcore::bls_sig_utils::BLSSignature;
 use dpp::dashcore::consensus::Decodable;
 use dpp::dashcore::hash_types::CycleHash;
@@ -252,21 +253,27 @@ pub struct OutPointFFI {
     /// The index of the referenced output in its transaction's vout.
     pub vout: u32,
 }
+//
+// #[allow(non_snake_case)]
+// #[ferment_macro::export]
+// pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
+//     a.clone()
+// }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
+pub fn OutPointFFI_clone(a: OutPoint) -> OutPoint {
     a.clone()
 }
 
-impl From<OutPointFFI> for OutPoint {
-    fn from(value: OutPointFFI) -> Self {
-        Self {
-            txid: Txid::from_raw_hash(sha256d::Hash::from_slice(value.txid.as_slice()).unwrap()),
-            vout: value.vout,
-        }
-    }
-}
+// impl From<OutPointFFI> for OutPoint {
+//     fn from(value: OutPointFFI) -> Self {
+//         Self {
+//             txid: Txid::from_raw_hash(sha256d::Hash::from_slice(value.txid.as_slice()).unwrap()),
+//             vout: value.vout,
+//         }
+//     }
+// }
 
 // #[derive(Clone, Eq, PartialEq)]
 // /// Instant send lock is a mechanism used by the Dash network to
@@ -291,7 +298,7 @@ pub struct ChainAssetLockProofFFI {
     /// Core height on which the asset lock transaction was chain locked or higher
     pub core_chain_locked_height: u32,
     /// A reference to Asset Lock Special Transaction ID and output index in the payload
-    pub out_point: OutPointFFI,
+    pub out_point: OutPoint,
 }
 
 #[allow(non_snake_case)]
