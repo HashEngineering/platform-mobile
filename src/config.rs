@@ -136,23 +136,23 @@ pub struct Config {
 
 //#[ferment_macro::opaque]
 pub trait EntryPoint {
-    fn get_runtime(&self) -> &Runtime;
-    fn get_sdk(&self) -> &Arc<Sdk>;
+    fn get_runtime(&self) -> Arc<Runtime>;
+    fn get_sdk(&self) -> Arc<Sdk>;
 }
 
 //#[ferment_macro::opaque]
 pub struct DashSdk {
     pub (crate) config: Config,
-    pub (crate) runtime: Runtime,
+    pub (crate) runtime: Arc<Runtime>,
     pub (crate) sdk: Arc<Sdk>
 }
 
 impl EntryPoint for DashSdk {
-    fn get_runtime(&self) -> &Runtime {
-        &self.runtime
+    fn get_runtime(&self) -> Arc<Runtime> {
+        self.runtime.clone()
     }
-    fn get_sdk(&self) -> &Arc<Sdk> {
-        &self.sdk
+    fn get_sdk(&self) -> Arc<Sdk> {
+        self.sdk.clone()
     }
 }
 
@@ -162,11 +162,11 @@ pub struct RustSdk {
 }
 
 impl RustSdk {
-    fn get_runtime(&self) -> &Runtime {
-        &self.entry_point.get_runtime()
+    fn get_runtime(self) -> Arc<Runtime> {
+        self.entry_point.get_runtime()
     }
-    fn get_sdk(&self) -> &Arc<Sdk> {
-        &self.entry_point.get_sdk()
+    fn get_sdk(self) -> Arc<Sdk> {
+        self.entry_point.get_sdk()
     }
 }
 
@@ -334,10 +334,12 @@ pub fn create_sdk(
     data_contract_callback: u64
 ) -> RustSdk {
     setup_logs();
-    let rt = Builder::new_current_thread()
+    let rt = Arc::new(
+        Builder::new_current_thread()
         .enable_all() // Enables all I/O and time drivers
         .build()
-        .expect("Failed to create a runtime");
+        .expect("Failed to create a runtime")
+    );
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -352,11 +354,12 @@ pub fn create_sdk(
         RustSdk {
             entry_point: Box::new(DashSdk {
                     config: cfg,
-                    runtime: Builder::new_current_thread()
-                        .thread_name("dask-sdk")
-                        .enable_all() // Enables all I/O and time drivers
-                        .build()
-                        .expect("Failed to create a runtime"),
+                runtime: rt.clone(),
+                    // runtime: Builder::new_current_thread()
+                    //     .thread_name("dask-sdk")
+                    //     .enable_all() // Enables all I/O and time drivers
+                    //     .build()
+                    //     .expect("Failed to create a runtime"),
                     sdk: sdk
                 }
             )
