@@ -2,7 +2,7 @@ use dapi_grpc::core::v0::{GetTransactionRequest};
 use dash_sdk::dapi_client::DapiRequestExecutor;
 use dash_sdk::RequestSettings;
 use tokio::runtime::Builder;
-use crate::config::Config;
+use crate::config::{Config, RustSdk};
 use crate::fetch_identity::setup_logs;
 
 #[ferment_macro::export]
@@ -26,6 +26,29 @@ pub fn get_transaction(txid: [u8; 32], quorum_public_key_callback: u64, data_con
                 },
                 RequestSettings::default(),
             )
+            .await;
+        match tx_info_result {
+            Ok(tx_info) => Ok(tx_info.transaction),
+            Err(error) => return Err(error.to_string())
+        }
+    })
+}
+
+#[ferment_macro::export]
+pub fn get_transaction_sdk(rust_sdk: * mut RustSdk, txid: [u8; 32]) -> Result<Vec<u8>, String> {
+
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+
+        let tx_info_result = sdk.execute(
+            GetTransactionRequest {
+                id: hex::encode(txid),
+            },
+            RequestSettings::default(),
+        )
             .await;
         match tx_info_result {
             Ok(tx_info) => Ok(tx_info.transaction),
