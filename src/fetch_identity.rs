@@ -57,6 +57,20 @@ pub fn fetch_identity_with_sdk(
 }
 
 #[ferment_macro::export]
+pub fn fetch_identity_balance_with_sdk(
+    rust_sdk: *mut RustSdk,
+    identifier: Identifier
+) -> Result<u64, String> {
+    println!("fetch_identity_with_sdk");
+    unsafe {
+        match identity_read_balance_with_sdk(rust_sdk, &identifier) {
+            Ok(balance) => Ok(balance),
+            Err(err) => Err(err.to_string())
+        }
+    }
+}
+
+#[ferment_macro::export]
 pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
                       quorum_public_key_callback: u64,
                       data_contract_callback: u64
@@ -85,6 +99,8 @@ pub fn fetch_identity_with_keyhash_sdk(
 
 //use serde::Deserialize;
 use dpp::dashcore::PubkeyHash;
+use drive_proof_verifier::types::IdentityBalance;
+use platform_value::string_encoding::Encoding;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
 use crate::fetch_document::get_document;
 
@@ -162,7 +178,7 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
 
 unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Result<Identity, ProtocolError> {
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -174,6 +190,32 @@ unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Res
         println!("Finished SDK, {:?}", sdk);
         println!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
+
+        match identity_result {
+            Ok(Some(identity)) => Ok(identity),
+            Ok(None) => Err(ProtocolError::IdentifierError("Identity not found".to_string())), // Placeholder for actual error handling
+            Err(e) => Err(ProtocolError::IdentifierError(
+                format!("Identifier not found: failure: {})", e))
+            )
+        }
+    })
+}
+
+
+unsafe fn identity_read_balance_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Result<u64, ProtocolError> {
+
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        let id: Identifier = id.clone();
+        println!("Setting up SDK");
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        println!("Finished SDK, {:?}", sdk);
+        println!("Call fetch");
+        let identity_result = IdentityBalance::fetch(&sdk, id).await;
 
         match identity_result {
             Ok(Some(identity)) => Ok(identity),
@@ -281,6 +323,19 @@ fn fetch_identity_with_sdk_test() {
     );
     match result {
         Ok(identity) => println!("success fetching identity: {:?}", identity),
+        Err(err) => panic!("error fetching identity: {}", err)
+    }
+}
+
+#[test]
+fn fetch_identity_balance_with_sdk_test() {
+    let mut rust_sdk = create_sdk(0, 0);
+    let result = fetch_identity_balance_with_sdk(
+        &mut rust_sdk,
+        Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).unwrap()
+    );
+    match result {
+        Ok(balance) => println!("success fetching identity: {:?}", balance),
         Err(err) => panic!("error fetching identity: {}", err)
     }
 }
