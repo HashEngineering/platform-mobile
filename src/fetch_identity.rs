@@ -332,7 +332,7 @@ fn fetch_identity_balance_with_sdk_test() {
     let mut rust_sdk = create_sdk(0, 0);
     let result = fetch_identity_balance_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).unwrap()
+        Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).unwrap()
     );
     match result {
         Ok(balance) => println!("success fetching identity: {:?}", balance),

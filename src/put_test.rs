@@ -55,7 +55,7 @@ fn get_salted_domain_hash(
 #[test]
 fn test_put_documents_for_username() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -64,14 +64,14 @@ fn test_put_documents_for_username() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A7UqP4ItvSFIYHH9nq1kB4mbmxBiwD34hxhjHNxMNRMu", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AmFRYIZd0oyPa1RX589pwd5G6lPLnkzEb06EsrLWrUU1", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-unit-test-9".to_string();
-    let normalized_label = "my-un1t-test-9".to_string();
-    let full_name = "my-un1t-test-9.dash";
+    let label = "my-unit-test-1".to_string();
+    let normalized_label = "my-un1t-test-1".to_string();
+    let full_name = "my-un1t-test-1.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -98,7 +98,7 @@ fn test_put_documents_for_username() {
     // "records" -> {HashMap@3968}  size = 1
     // key = "records"
     // value = {HashMap@3968}  size = 1
-    // "dashUniqueIdentityId" -> {Identifier@3728} 6aWnykZbX81RDkSqrW5nwqp9wvaxebibhvk3Te1ARght
+    // "dashUniqueIdentityId" -> {Identifier@3728} 9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj
     // "label" -> "bob1"
     // "preorderSalt" -> {byte[32]@3971} [106, 10, 84, 11, 1, -56, 70, 106, 69, -53, -1, 91, -103, -40, 64, -49, 20, -82, 80, 4, 43, 9, -79, 118, -71, 118, 89, 78, 52, 18, 44, -75]
     // "normalizedParentDomainName" -> "dash"
@@ -161,7 +161,7 @@ fn test_put_documents_for_username() {
             .document_type_for_name(&"preorder")
             .expect("expected a profile document type");
 
-        let hex_private_key = "25f1694aac2fe1f4cb910c302f84fdc4c091fd6be1b9a6fc85189f471903535d";
+        let hex_private_key = "fe71b90f0c1ffca2738afad90f7d0790c6529c4341462ca4165f070f8f934c9c";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -255,7 +255,7 @@ fn test_put_documents_for_username() {
 #[test]
 fn test_put_txmetadata_contract() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -264,7 +264,7 @@ fn test_put_txmetadata_contract() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A7UqP4ItvSFIYHH9nq1kB4mbmxBiwD34hxhjHNxMNRMu", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AmFRYIZd0oyPa1RX589pwd5G6lPLnkzEb06EsrLWrUU1", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -287,7 +287,7 @@ fn test_put_txmetadata_contract() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let hex_private_key = "25f1694aac2fe1f4cb910c302f84fdc4c091fd6be1b9a6fc85189f471903535d";
+        let hex_private_key = "fe71b90f0c1ffca2738afad90f7d0790c6529c4341462ca4165f070f8f934c9c";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -330,7 +330,7 @@ fn test_put_txmetadata_contract() {
             &sdk,
             identity_public_key,
             &signer
-        ).await.or_else(|e| Err(ProtocolError::Generic("failed to create data contract".into())));
+        ).await.or_else(|e| Err(ProtocolError::Generic(e.to_string())));
 
         Ok::<DataContract, ProtocolError>(data_contract_result.unwrap())
     }) {
