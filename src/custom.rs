@@ -1,11 +1,10 @@
-use dpp::dashcore;
-use dpp::dashcore::hashes::Hash;
-use dpp::dashcore::secp256k1::ThirtyTwoByteHash;
+use dashcore::hashes::Hash;
+use dashcore::secp256k1::ThirtyTwoByteHash;
 
 #[allow(non_camel_case_types)]
+#[repr(C)]
 #[ferment_macro::register(dashcore::blockdata::transaction::OutPoint)]
 #[derive(Clone)]
-#[repr(C)]
 pub struct OutPoint {
     pub txid: *mut [u8; 32],
     pub vout: u32,
@@ -27,6 +26,11 @@ impl Drop for OutPoint {
         }
     }
 }
+
+// #[ferment_macro::export]
+// pub fn get_outpoint(instant_lock: dashcore::blockdata::transaction::OutPoint) -> dashcore::blockdata::transaction::OutPoint {
+//     instant_lock.clone()
+// }
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(dashcore::ephemerealdata::instant_lock::InstantLock)]
