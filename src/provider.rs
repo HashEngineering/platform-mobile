@@ -168,7 +168,7 @@ impl ContextProvider for CallbackContextProvider {
 
         let data_contract = handle
             .block_on(DataContract::fetch(sdk, *data_contract_id))
-            .map_err(|e| ContextProviderError::InvalidDataContract(e.to_string()))?;
+            .map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))?;
 
         if let Some(ref dc) = data_contract {
             self.data_contracts_cache.put(*data_contract_id, dc.clone());
