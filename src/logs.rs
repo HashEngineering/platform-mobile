@@ -4,7 +4,8 @@ use tracing::{Event, Subscriber};
 use tracing_subscriber::{Layer, registry::Registry};
 #[cfg(target_os = "android")]
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-
+#[cfg(target_os = "android")]
+use tracing::field::Field;
 #[cfg(target_os = "android")]
 extern "C" {
     fn __android_log_write(prio: i32, tag: *const libc::c_char, text: *const libc::c_char);
@@ -20,23 +21,62 @@ pub fn android_log_message(tag: &str, message: &str) {
         );
     }
 }
+
+#[cfg(target_os = "android")]
+struct VisitMessage<'a>(&'a mut String);
+
+#[cfg(target_os = "android")]
+impl<'a> tracing::field::Visit for VisitMessage<'a> {
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            self.0.push_str(&format!("{:?}", value));
+        }
+    }
+}
+
 #[cfg(target_os = "android")]
 struct AndroidLogLayer;
 #[cfg(target_os = "android")]
-
 impl<S> Layer<S> for AndroidLogLayer
     where
         S: Subscriber,
 {
     fn on_event(&self, event: &Event, _context: tracing_subscriber::layer::Context<S>) {
-        // Convert the event to a string and log it
-        let message = format!("{:?}", event);
-        crate::fetch_identity::android_log_message("my_tag", &message);
+        let metadata = event.metadata();
+
+        // Extract the message from the event fields
+        let mut message = String::new();
+        let mut visitor = VisitMessage(&mut message);
+        event.record(&mut visitor);
+
+        let simplified_message = format!(
+            "[{}] {} - {}: {}",
+            metadata.level(),
+            metadata.target(),
+            metadata.name(),
+            visitor.0
+        );
+
+        crate::logs::android_log_message("platform-mobile", &message);
     }
 }
 
+static mut LOGS_SETUP: bool = false;
 #[cfg(target_os = "android")]
 pub fn setup_logs() {
+    unsafe {
+        if (LOGS_SETUP) {
+            return
+        }
+        LOGS_SETUP = true;
+    }
+    let env_filter = match tracing_subscriber::EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(e) => {
+            // android_log_message("platform-mobile", &format!("Error parsing env filter: {}. Using default.", e));
+            tracing_subscriber::EnvFilter::new("info,dash_sdk=trace,h2=info")
+        }
+    };
     let subscriber = tracing_subscriber::registry()
         .with(AndroidLogLayer)
         .with(
@@ -44,17 +84,13 @@ pub fn setup_logs() {
                 .with_ansi(false)
                 .with_writer(std::io::stderr)
         )
-        .with(
-            tracing_subscriber::EnvFilter::new(
-                "info,dash_sdk=trace,h2=info",
-            )
-        );
+        .with(env_filter);
 
     //tracing::subscriber::set_global_default(subscriber)
     //    .expect("Unable to set global default subscriber");
 
     if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
-        crate::fetch_identity::android_log_message("platform-mobile", &*format!("Unable to set global default subscriber: {}", e));
+        crate::logs::android_log_message("platform-mobile", &*format!("Unable to set global default subscriber: {}", e));
     }
 }
 
