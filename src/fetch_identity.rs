@@ -294,18 +294,6 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
     })
 }
 
-pub fn setup_logs() {
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(
-            "info,dash_sdk=trace,h2=info",
-        ))
-        .pretty()
-        .with_ansi(false)
-        .with_writer(std::io::stdout)
-        .try_init()
-        .ok();
-}
-
 #[test]
 fn fetch_identity_test() {
     let result = fetch_identity_with_core(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
