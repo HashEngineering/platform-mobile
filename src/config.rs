@@ -143,13 +143,6 @@ pub trait EntryPoint {
     fn get_request_settings(&self) -> RequestSettings;
 }
 
-
-// #[ferment_macro::opaque]
-pub struct DashSdk2 {
-    pub config: Config,
-    pub runtime: Arc<Runtime>,
-    pub sdk: Arc<Sdk>
-}
 //#[ferment_macro::opaque]
 pub struct DashSdk {
     pub config: Config,
@@ -177,11 +170,6 @@ impl EntryPoint for DashSdk {
     fn get_request_settings(&self) -> RequestSettings {
         self.request_settings
     }
-}
-
-#[ferment_macro::opaque]
-impl EntryPoint2 for DashSdk {
-
 }
 
 // should this be exported as Arc<> by the functions?
@@ -463,6 +451,44 @@ pub fn create_sdk(
                 }
             }
             )
+        }
+    })
+}
+
+// #[ferment_macro::export]
+pub fn create_dash_sdk(
+    quorum_public_key_callback: u64,
+    data_contract_callback: u64
+) -> DashSdk {
+    setup_logs();
+    let rt = Arc::new(
+        Builder::new_current_thread()
+            .enable_all() // Enables all I/O and time drivers
+            .build()
+            .expect("Failed to create a runtime")
+    );
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let cfg = Config::new();
+        let sdk = if quorum_public_key_callback != 0 {
+            // use the callbacks to obtain quorum public keys
+            cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+        } else {
+            // use Dash Core for quorum public keys
+            cfg.setup_api().await
+        };
+        DashSdk {
+            config: cfg,
+            runtime: rt.clone(),
+            sdk: sdk,
+            contracts: Default::default(),
+            request_settings: RequestSettings {
+                connect_timeout: None,
+                timeout: None,
+                retries: Some(5),
+                ban_failed_address: Some(true),
+            }
         }
     })
 }
