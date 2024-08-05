@@ -103,6 +103,7 @@ use drive_proof_verifier::types::IdentityBalance;
 use platform_value::string_encoding::Encoding;
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
 use crate::fetch_document::get_document;
+use crate::logs::setup_logs;
 
 
 fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {

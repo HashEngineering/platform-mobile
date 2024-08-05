@@ -8,7 +8,7 @@ use platform_value::{Identifier, IdentifierBytes32};
 use platform_value::string_encoding::Encoding;
 use tokio::runtime::Builder;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 
 #[derive(Clone, Debug)]
 #[ferment_macro::export]

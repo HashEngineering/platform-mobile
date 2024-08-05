@@ -12,6 +12,7 @@ use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
 use tokio::runtime::{Builder, Runtime};
 use crate::config::{Config, DPNS_DATACONTRACT_ID, DashSdk, RustSdk, RustSdk5, create_sdk, create_sdk5, EntryPoint};
 use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 
 #[ferment_macro::export]
 pub fn get_document()-> Document {

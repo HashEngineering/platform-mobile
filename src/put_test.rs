@@ -32,7 +32,7 @@ use simple_signer::signer::SimpleSigner;
 use tokio::runtime::Builder;
 use tracing::trace;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 use crate::put::{get_wait_result_error, wait_for_response_concurrent};
 use dash_sdk::Error;
 use crate::config::RustSdk;

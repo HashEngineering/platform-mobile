@@ -17,7 +17,7 @@ use dash_sdk::mock::provider::GrpcContextProvider;
 use dash_sdk::Sdk;
 use ferment_interfaces::boxed;
 use tokio::runtime::{Builder, Runtime};
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 use crate::provider::CallbackContextProvider;
 
 /// Existing document ID

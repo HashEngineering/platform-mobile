@@ -3,7 +3,7 @@ use dash_sdk::dapi_client::DapiRequestExecutor;
 use dash_sdk::RequestSettings;
 use tokio::runtime::Builder;
 use crate::config::{Config, RustSdk};
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 
 #[ferment_macro::export]
 pub fn get_transaction(txid: [u8; 32], quorum_public_key_callback: u64, data_contract_callback: u64) -> Result<Vec<u8>, String> {

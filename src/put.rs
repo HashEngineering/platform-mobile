@@ -52,7 +52,7 @@ use tokio::runtime::Builder;
 use tracing::trace;
 use rand::random;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 use crate::provider::Cache;
 use crate::config::RustSdk;
 use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
