@@ -36,19 +36,19 @@ pub fn BlockHeight_clone(height: BlockHeight) -> BlockHeight {
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Value_clone(value: &Value) -> Value {
+pub fn Value_clone(value: Value) -> Value {
     value.clone()
 }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Vec_Value_clone(value_vec: &Vec<Value>) -> Vec<Value> {
+pub fn Vec_Value_clone(value_vec: Vec<Value>) -> Vec<Value> {
     value_vec.clone()
 }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn ValueMap_clone(value_map: &ValueMap) -> ValueMap {
+pub fn ValueMap_clone(value_map: ValueMap) -> ValueMap {
     value_map.clone()
 }
 
@@ -60,19 +60,19 @@ pub fn std_collections_Map_keys_String_values_platform_value_Value_clone(map: BT
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Vec_u8_clone(vec: &Vec<u8>) -> Vec<u8> {
+pub fn Vec_u8_clone(vec: Vec<u8>) -> Vec<u8> {
     vec.clone()
 }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn Document_clone(document: &Document) -> Document {
+pub fn Document_clone(document: Document) -> Document {
     document.clone()
 }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn DocumentV0_clone(document: &DocumentV0) -> DocumentV0 {
+pub fn DocumentV0_clone(document: DocumentV0) -> DocumentV0 {
     document.clone()
 }
 

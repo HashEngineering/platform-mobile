@@ -4,14 +4,34 @@ use std::hash::Hash;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use dpp::prelude::{DataContract, Identifier};
+use dpp::data_contract::DataContract;
+use platform_value::types::identifier::Identifier;
 use drive_proof_verifier::error::ContextProviderError;
 use drive_proof_verifier::ContextProvider;
 use platform_value::converter::serde_json;
 use dash_sdk::platform::Fetch;
 use dash_sdk::{Sdk, Error};
+use platform_value::types::binary_data::BinaryData;
+use crate::config::Config;
 
-#[ferment_macro::export]
+// not supported
+
+#[ferment_macro::opaque]
+pub type QuorumPublicKeyCallbackExport = unsafe extern "C" fn(quorum_type: u32, quorum_hash: [u8; 32], core_chain_locked_height: u32) -> [u8; 96];
+
+// not supported
+// #[ferment_macro::opaque]
+// pub type QuorumPublicKeyCallbackExport2 = extern "C" fn(quorum_type: u32, quorum_hash: Vec<u8>, core_chain_locked_height: u32) -> Vec<u8>;
+
+#[ferment_macro::opaque]
+pub type QuorumPublicKeyCallbackExport3 = unsafe extern "C" fn(quorum_type: u32, quorum_hash: BinaryData, core_chain_locked_height: u32) -> BinaryData;
+
+// #[ferment_macro::export]
+// pub fn set_callback(c1: QuorumPublicKeyCallbackExport) {
+//
+// }
+
+// not supported with ferment
 type QuorumPublicKeyCallback = extern "C" fn(quorum_type: u32, quorum_hash: *const u8, core_chain_locked_height: u32, result: * mut u8);
 
 //#[ferment_macro::export]
@@ -20,6 +40,8 @@ type DataContractCallback = extern "C" fn(id: &Identifier) -> DataContract;
 /// Context provider that uses the Core gRPC API to fetch data from the platform.
 ///
 /// Example [ContextProvider] used by the Sdk for testing purposes.
+///
+//#[ferment_macro::opaque]
 pub struct CallbackContextProvider {
     pub quorum_public_key_callback: QuorumPublicKeyCallback,
     pub data_contract_callback: DataContractCallback,
@@ -96,19 +118,19 @@ impl ContextProvider for CallbackContextProvider {
         quorum_hash: [u8; 32], // quorum hash is 32 bytes
         core_chain_locked_height: u32,
     ) -> Result<[u8; 48], ContextProviderError> {
-        println!("get_quorum_public_key: executing");
+        tracing::info!("get_quorum_public_key: executing");
         if let Some(key) = self
             .quorum_public_keys_cache
             .get(&(quorum_hash, quorum_type))
         {
-            println!("get_quorum_public_key: returning from Cache");
+            tracing::info!("get_quorum_public_key: returning from Cache");
             return Ok(*key);
         };
 
         let mut key: [u8; 48] = [0; 48]; // To store the result
 
         (self.quorum_public_key_callback)(quorum_type, quorum_hash.as_ptr(), core_chain_locked_height, key.as_mut_ptr());
-        println!("get_quorum_public_key {:?}", key);
+        tracing::info!("get_quorum_public_key {:?}", key);
 
         self.quorum_public_keys_cache
             .put((quorum_hash, quorum_type), key);
@@ -146,7 +168,7 @@ impl ContextProvider for CallbackContextProvider {
 
         let data_contract = handle
             .block_on(DataContract::fetch(sdk, *data_contract_id))
-            .map_err(|e| ContextProviderError::InvalidDataContract(e.to_string()))?;
+            .map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))?;
 
         if let Some(ref dc) = data_contract {
             self.data_contracts_cache.put(*data_contract_id, dc.clone());
@@ -186,3 +208,5 @@ impl<K: Hash + Eq, V> Cache<K, V> {
         guard.put(k, Arc::new(v));
     }
 }
+
+
