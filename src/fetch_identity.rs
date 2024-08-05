@@ -183,8 +183,6 @@ unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Res
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        // Your async code here
-        let cfg = Config::new();
         let id: Identifier = id.clone();
         println!("Setting up SDK");
         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
@@ -296,7 +294,7 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
 
 #[test]
 fn fetch_identity_test() {
-    let result = fetch_identity_with_core(Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID)));
+    let result = fetch_identity_with_core(Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap());
     match result {
         Ok(identity) => println!("success fetching identity: {:?}", identity),
         Err(err) => panic!("error fetching identity: {}", err)
@@ -308,7 +306,7 @@ fn fetch_identity_with_sdk_test() {
     let mut rust_sdk = create_sdk(0, 0);
     let result = fetch_identity_with_sdk(
         &mut rust_sdk,
-        Identifier(IdentifierBytes32(DPNS_DATACONTRACT_OWNER_ID))
+        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
     );
     match result {
         Ok(identity) => println!("success fetching identity: {:?}", identity),
@@ -321,7 +319,7 @@ fn fetch_identity_balance_with_sdk_test() {
     let mut rust_sdk = create_sdk(0, 0);
     let result = fetch_identity_balance_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).unwrap()
+        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
     );
     match result {
         Ok(balance) => println!("success fetching identity: {:?}", balance),

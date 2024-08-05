@@ -139,13 +139,23 @@ pub trait EntryPoint2 {
 pub trait EntryPoint {
     fn get_runtime(&self) -> Arc<Runtime>;
     fn get_sdk(&self) -> Arc<Sdk>;
+
+    fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>>;
 }
 
+
+// #[ferment_macro::opaque]
+pub struct DashSdk2 {
+    pub config: Config,
+    pub runtime: Arc<Runtime>,
+    pub sdk: Arc<Sdk>
+}
 //#[ferment_macro::opaque]
 pub struct DashSdk {
-    pub (crate) config: Config,
-    pub (crate) runtime: Arc<Runtime>,
-    pub (crate) sdk: Arc<Sdk>
+    pub config: Config,
+    pub runtime: Arc<Runtime>,
+    pub sdk: Arc<Sdk>,
+    pub contracts: BTreeMap<Identifier, Arc<DataContract>>
 }
 
 impl EntryPoint for DashSdk {
@@ -154,6 +164,13 @@ impl EntryPoint for DashSdk {
     }
     fn get_sdk(&self) -> Arc<Sdk> {
         self.sdk.clone()
+    }
+
+    fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
+        match self.contracts.get(identifier) {
+            Some(T) => Some(T.clone()),
+            None => None
+        }
     }
 }
 
@@ -175,6 +192,10 @@ impl RustSdk {
     fn get_sdk(self) -> Arc<Sdk> {
         self.entry_point.get_sdk()
     }
+
+    pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
+        self.entry_point.get_data_contract(identifier)
+    }
 }
 
 // #[ferment_macro::opaque]
@@ -194,10 +215,49 @@ impl RustSdk {
 //     pub entry_point: * mut DashSdk
 // }
 
-#[ferment_macro::opaque]
-pub struct RustSdk5 {
-    pub entry_point: * mut c_void
+//#[ferment_macro::opaque]
+pub struct DashSharedCoreWithRuntime {
+    pub sdk: *mut Sdk,
+    pub runtime: *mut Runtime,
 }
+
+//#[ferment_macro::export]
+impl DashSharedCoreWithRuntime {
+    pub fn new(quorum_public_key_callback: u64, data_contract_callback: u64) -> Self {
+        setup_logs();
+        let rt =
+            Builder::new_current_thread()
+                .enable_all() // Enables all I/O and time drivers
+                .build()
+                .expect("Failed to create a runtime");
+
+        // Execute the async block using the Tokio runtime
+        rt.block_on(async {
+            let cfg = Config::new();
+            let sdk = if quorum_public_key_callback != 0 {
+                // use the callbacks to obtain quorum public keys
+                cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+            } else {
+                // use Dash Core for quorum public keys
+                cfg.setup_api().await
+            };
+
+            let rt = Builder::new_current_thread()
+                    .enable_all() // Enables all I/O and time drivers
+                    .build()
+                    .expect("Failed to create a runtime");
+            Self {
+                sdk: boxed(sdk.as_ref().clone()),
+                runtime: boxed(rt)
+            }
+        })
+    }
+}
+
+// #[ferment_macro::opaque]
+// pub struct RustSdk5 {
+//     pub entry_point: * mut c_void
+// }
 
 impl Config {
     /// Prefix of configuration options in the environment variables and `.env` file.
@@ -389,8 +449,9 @@ pub fn create_sdk(
                     //     .enable_all() // Enables all I/O and time drivers
                     //     .build()
                     //     .expect("Failed to create a runtime"),
-                    sdk: sdk
-                }
+                    sdk: sdk,
+                contracts: Default::default(),
+            }
             )
         }
     })
@@ -429,38 +490,38 @@ pub fn create_sdk(
 //     })
 // }
 
-#[ferment_macro::export]
-pub fn create_sdk5(
-    quorum_public_key_callback: u64,
-    data_contract_callback: u64
-) -> RustSdk5 {
-    setup_logs();
-    let rt = Arc::new(
-        Builder::new_current_thread()
-            .enable_all() // Enables all I/O and time drivers
-            .build()
-            .expect("Failed to create a runtime")
-    );
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        let cfg = Config::new();
-        let sdk = if quorum_public_key_callback != 0 {
-            // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
-        } else {
-            // use Dash Core for quorum public keys
-            cfg.setup_api().await
-        };
-        RustSdk5 {
-            entry_point: Box::into_raw(Box::new(DashSdk {
-                config: cfg,
-                runtime: rt.clone(),
-                sdk: sdk
-            })) as * mut c_void
-        }
-    })
-}
+// #[ferment_macro::export]
+// pub fn create_sdk5(
+//     quorum_public_key_callback: u64,
+//     data_contract_callback: u64
+// ) -> RustSdk5 {
+//     setup_logs();
+//     let rt = Arc::new(
+//         Builder::new_current_thread()
+//             .enable_all() // Enables all I/O and time drivers
+//             .build()
+//             .expect("Failed to create a runtime")
+//     );
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//         let cfg = Config::new();
+//         let sdk = if quorum_public_key_callback != 0 {
+//             // use the callbacks to obtain quorum public keys
+//             cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+//         } else {
+//             // use Dash Core for quorum public keys
+//             cfg.setup_api().await
+//         };
+//         RustSdk5 {
+//             entry_point: Box::into_raw(Box::new(DashSdk {
+//                 config: cfg,
+//                 runtime: rt.clone(),
+//                 sdk: sdk
+//             })) as * mut c_void
+//         }
+//     })
+// }
 
 // #[ferment_macro::export]
 // #[derive(Clone, Debug)]
@@ -560,6 +621,8 @@ pub fn create_sdk5(
 // pub struct Processor {
 //     pub chain_id: Box<dyn MyConfig>,
 // }
+
+
 
 #[test]
 fn test_dash_sdk() {

@@ -10,8 +10,7 @@ use dpp::document::{Document, DocumentV0Getters};
 use drive::query::{ordering::OrderClause, conditions::WhereClause, conditions::WhereOperator};
 use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
 use tokio::runtime::{Builder, Runtime};
-use crate::config::{Config, DPNS_DATACONTRACT_ID, DashSdk, RustSdk, RustSdk5, create_sdk, create_sdk5, EntryPoint};
-use crate::fetch_identity::setup_logs;
+use crate::config::{Config, DPNS_DATACONTRACT_ID, DashSdk, RustSdk, create_sdk, EntryPoint};
 use crate::logs::setup_logs;
 
 #[ferment_macro::export]
@@ -417,20 +416,39 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
         //         .expect("data contract not found"),
         // );
 
-        let contract_fetch_result =
-            DataContract::fetch(&sdk, data_contract_id.clone())
-                .await;
-        tracing::warn!("contract_fetch_result: {:?}", contract_fetch_result);
-        let contract_result = match contract_fetch_result {
-            Ok(contract) => contract,
-            Err(e) => return Err(e.to_string())
-        };
-        tracing::warn!("contract_result: {:?}", contract_result);
+        // let contract_fetch_result = match(sdk.context_provider()) {
+        //     Some(context_provider) => {
+        //         context_provider.get_data_contract(&contract_id)
+        //     },
+        //     None => return Err("data contract not found".to_string())
+        // };
 
-        let contract = match contract_result {
-            Some(c) => Arc::new(c),
-            None => return Err("contract not found".to_string())
+        let contract = match ((*rust_sdk).get_data_contract(&contract_id)) {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                match (DataContract::fetch(&sdk, data_contract_id.clone())
+                         .await) {
+                    Ok(Some(data_contract)) => Arc::new(data_contract),
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
         };
+
+        // let contract_fetch_result =
+        //     DataContract::fetch(&sdk, data_contract_id.clone())
+        //         .await;
+        tracing::warn!("contract_fetch_result: {:?}", contract);
+        // let contract_result = match contract_fetch_result {
+        //     Ok(contract) => contract,
+        //     Err(e) => return Err(e.to_string())
+        // };
+        //tracing::warn!("contract_result: {:?}", contract_result);
+
+        // let contract = match contract_result {
+        //     Some(c) => c,
+        //     None => return Err("contract not found".to_string())
+        // };
 
         tracing::warn!("fetching many...");
         // Fetch multiple documents so that we get document ID
@@ -646,7 +664,7 @@ fn dpns_domain_by_id(unique_id: Identifier,
             DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)
                 .expect("create SdkDocumentQuery")
                 .with_where(WhereClause {
-                    field: "records.dashUniqueIdentityId".to_string(),
+                    field: "records.identity".to_string(),
                     operator: WhereOperator::Equal,
                     value: Value::from(unique_id),
                 });
