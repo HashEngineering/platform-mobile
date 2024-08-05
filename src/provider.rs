@@ -118,19 +118,19 @@ impl ContextProvider for CallbackContextProvider {
         quorum_hash: [u8; 32], // quorum hash is 32 bytes
         core_chain_locked_height: u32,
     ) -> Result<[u8; 48], ContextProviderError> {
-        println!("get_quorum_public_key: executing");
+        tracing::info!("get_quorum_public_key: executing");
         if let Some(key) = self
             .quorum_public_keys_cache
             .get(&(quorum_hash, quorum_type))
         {
-            println!("get_quorum_public_key: returning from Cache");
+            tracing::info!("get_quorum_public_key: returning from Cache");
             return Ok(*key);
         };
 
         let mut key: [u8; 48] = [0; 48]; // To store the result
 
         (self.quorum_public_key_callback)(quorum_type, quorum_hash.as_ptr(), core_chain_locked_height, key.as_mut_ptr());
-        println!("get_quorum_public_key {:?}", key);
+        tracing::info!("get_quorum_public_key {:?}", key);
 
         self.quorum_public_keys_cache
             .put((quorum_hash, quorum_type), key);

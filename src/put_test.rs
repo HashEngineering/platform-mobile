@@ -249,7 +249,7 @@ fn test_put_documents_for_username() {
 
         Ok::<Document, ProtocolError>(second_document_result)
     }) {
-        Ok(doc) => println!("Success!"),
+        Ok(doc) => tracing::info!("Success!"),
         Err(err) => panic!("{:?}", err.to_string())
     };
 }
@@ -336,7 +336,7 @@ fn test_put_txmetadata_contract() {
 
         Ok::<DataContract, ProtocolError>(data_contract_result.unwrap())
     }) {
-        Ok(data_contract) => println!("Success!\n{}: {:?}", data_contract.id(), data_contract),
+        Ok(data_contract) => tracing::info!("Success!\n{}: {:?}", data_contract.id(), data_contract),
         Err(err) => panic!("{:?}", err.to_string())
     };
 }

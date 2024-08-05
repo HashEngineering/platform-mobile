@@ -329,7 +329,7 @@ impl Config {
         let scheme = if self.platform_ssl { "https" } else { "http" };
 
         let uris: Result<Vec<http::Uri>, http::uri::InvalidUri> = if ADDRESS_LIST.is_empty() {
-            println!("default address list is empty");
+            tracing::info!("default address list is empty");
             let address = format!("{}://{}:{}", scheme, self.platform_host, self.platform_port);
             vec![http::Uri::from_str(&address)].into_iter().collect()
         } else {

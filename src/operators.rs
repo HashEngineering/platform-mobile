@@ -32,5 +32,5 @@ pub fn Value_hash(a: Value) -> i32 {
 #[test]
 fn test() {
     let a = Value::I8(1);
-    println!("hashcode {} = {}", a, Value_hash(a.clone()))
+    tracing::info!("hashcode {} = {}", a, Value_hash(a.clone()))
 }

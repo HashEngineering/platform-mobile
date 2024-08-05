@@ -35,7 +35,7 @@ pub fn fetch_identity(identifier: Identifier,
                        quorum_public_key_callback: u64,//QuorumPublicKeyCallback,
                        data_contract_callback: u64 //DataContractCallback
 ) -> Result<Identity, String> {
-    println!("fetch_identity4");
+    tracing::info!("fetch_identity4");
     match identity_read_with_callbacks(&identifier, quorum_public_key_callback, data_contract_callback) {
         Ok(identity) => Ok(identity),
         Err(err) => Err(err.to_string())
@@ -47,7 +47,7 @@ pub fn fetch_identity_with_sdk(
     rust_sdk: *mut RustSdk,
     identifier: Identifier
 ) -> Result<Identity, String> {
-    println!("fetch_identity_with_sdk");
+    tracing::info!("fetch_identity_with_sdk");
     unsafe {
         match identity_read_with_sdk(rust_sdk, &identifier) {
             Ok(identity) => Ok(identity),
@@ -61,7 +61,7 @@ pub fn fetch_identity_balance_with_sdk(
     rust_sdk: *mut RustSdk,
     identifier: Identifier
 ) -> Result<u64, String> {
-    println!("fetch_identity_with_sdk");
+    tracing::info!("fetch_identity_with_sdk");
     unsafe {
         match identity_read_balance_with_sdk(rust_sdk, &identifier) {
             Ok(balance) => Ok(balance),
@@ -75,7 +75,7 @@ pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
                       quorum_public_key_callback: u64,
                       data_contract_callback: u64
 ) -> Result<Identity, String> {
-    println!("fetch_identity4");
+    tracing::info!("fetch_identity4");
     match identity_from_keyhash_with_callbacks(&PublicKeyHash(key_hash), quorum_public_key_callback, data_contract_callback) {
         Ok(identity) => Ok(identity),
         Err(err) => Err(err.to_string())
@@ -152,14 +152,14 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
         // Your async code here
         let cfg = Config::new();
         let id: Identifier = id.clone();
-        println!("Setting up SDK");
+        tracing::info!("Setting up SDK");
         let sdk = if q != 0 {
             cfg.setup_api_with_callbacks(q, d).await
         } else {
             cfg.setup_api().await
         };
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        tracing::info!("Finished SDK, {:?}", sdk);
+        tracing::info!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
 
         match identity_result {
@@ -184,10 +184,10 @@ unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Res
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let id: Identifier = id.clone();
-        println!("Setting up SDK");
+        tracing::info!("Setting up SDK");
         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        tracing::info!("Finished SDK, {:?}", sdk);
+        tracing::info!("Call fetch");
         let identity_result = Identity::fetch(&sdk, id).await;
 
         match identity_result {
@@ -210,10 +210,10 @@ unsafe fn identity_read_balance_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier
         // Your async code here
         let cfg = Config::new();
         let id: Identifier = id.clone();
-        println!("Setting up SDK");
+        tracing::info!("Setting up SDK");
         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        tracing::info!("Finished SDK, {:?}", sdk);
+        tracing::info!("Call fetch");
         let identity_result = IdentityBalance::fetch(&sdk, id).await;
 
         match identity_result {
@@ -240,14 +240,14 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
         // Your async code here
         let cfg = Config::new();
         let key_hash = pubkey_hash.clone();
-        println!("Setting up SDK");
+        tracing::info!("Setting up SDK");
         let sdk = if q != 0 {
             cfg.setup_api_with_callbacks(q, d).await
         } else {
             cfg.setup_api().await
         };
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        tracing::info!("Finished SDK, {:?}", sdk);
+        tracing::info!("Call fetch");
         let identity_result = Identity::fetch(&sdk, key_hash).await;
 
         match identity_result {
@@ -276,10 +276,10 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
         // Your async code here
         let cfg = Config::new();
         let key_hash = pubkey_hash.clone();
-        println!("Setting up SDK");
+        tracing::info!("Setting up SDK");
         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-        println!("Finished SDK, {:?}", sdk);
-        println!("Call fetch");
+        tracing::info!("Finished SDK, {:?}", sdk);
+        tracing::info!("Call fetch");
         let identity_result = Identity::fetch(&sdk, key_hash).await;
 
         match identity_result {
@@ -296,7 +296,7 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
 fn fetch_identity_test() {
     let result = fetch_identity_with_core(Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap());
     match result {
-        Ok(identity) => println!("success fetching identity: {:?}", identity),
+        Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
         Err(err) => panic!("error fetching identity: {}", err)
     }
 }
@@ -309,7 +309,7 @@ fn fetch_identity_with_sdk_test() {
         Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
     );
     match result {
-        Ok(identity) => println!("success fetching identity: {:?}", identity),
+        Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
         Err(err) => panic!("error fetching identity: {}", err)
     }
 }
@@ -322,7 +322,7 @@ fn fetch_identity_balance_with_sdk_test() {
         Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
     );
     match result {
-        Ok(balance) => println!("success fetching identity: {:?}", balance),
+        Ok(balance) => tracing::info!("success fetching identity: {:?}", balance),
         Err(err) => panic!("error fetching identity: {}", err)
     }
 }
@@ -330,5 +330,5 @@ fn fetch_identity_balance_with_sdk_test() {
 #[test]
 fn get_documents_test() {
     let result = get_document();
-    println!("ownerId = {}", result)
+    tracing::info!("ownerId = {}", result)
 }

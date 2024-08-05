@@ -732,7 +732,7 @@ fn docs_test() {
 
     for document in docs {
         // Use `document` here
-        println!("{:?}", document); // Assuming Document implements Debug
+        tracing::info!("{:?}", document); // Assuming Document implements Debug
     }
 }
 
@@ -743,7 +743,7 @@ fn docs_query_test() {
 
     for document in docs {
         // Use `document` here
-        println!("{:?}", document); // Assuming Document implements Debug
+        tracing::info!("{:?}", document); // Assuming Document implements Debug
     }
 }
 
@@ -754,7 +754,7 @@ fn docs_query_id_test() {
 
     for document in docs {
         // Use `document` here
-        println!("{:?}", document); // Assuming Document implements Debug
+        tracing::info!("{:?}", document); // Assuming Document implements Debug
     }
 }
 
@@ -774,10 +774,10 @@ fn docs_full_query_test() {
 
     match docs_result {
         Ok(docs) => {
-            println!("query results");
+            tracing::info!("query results");
             for document in docs {
                 // Use `document` here
-                println!("{:?}", document); // Assuming Document implements Debug
+                tracing::info!("{:?}", document); // Assuming Document implements Debug
             }
         }
         Err(e) => panic!("{}", e)
@@ -803,10 +803,10 @@ fn docs_full_query_sdk_test() {
 
     match docs_result {
         Ok(docs) => {
-            println!("query results");
+            tracing::info!("query results");
             for document in docs {
                 // Use `document` here
-                println!("{:?}", document); // Assuming Document implements Debug
+                tracing::info!("{:?}", document); // Assuming Document implements Debug
             }
         }
         Err(e) => panic!("{}", e)
@@ -832,10 +832,10 @@ fn docs_full_query_sdk_test() {
 //
 //     match docs_result {
 //         Ok(docs) => {
-//             println!("query results");
+//             tracing::info!("query results");
 //             for document in docs {
 //                 // Use `document` here
-//                 println!("{:?}", document); // Assuming Document implements Debug
+//                 tracing::info!("{:?}", document); // Assuming Document implements Debug
 //             }
 //         }
 //         Err(e) => panic!("{}", e)

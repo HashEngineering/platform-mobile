@@ -84,7 +84,7 @@ fn get_data_contract_test() {
         0,
         0
     ).unwrap();
-    println!("dpns: {:?}", data_contract);
+    tracing::info!("dpns: {:?}", data_contract);
 }
 
 #[test]
