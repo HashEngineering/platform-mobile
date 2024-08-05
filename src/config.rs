@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use dash_sdk::mock::provider::GrpcContextProvider;
-use dash_sdk::Sdk;
+use dash_sdk::{RequestSettings, Sdk};
 use ferment_interfaces::boxed;
 use tokio::runtime::{Builder, Runtime};
 use crate::logs::setup_logs;
@@ -139,8 +139,8 @@ pub trait EntryPoint2 {
 pub trait EntryPoint {
     fn get_runtime(&self) -> Arc<Runtime>;
     fn get_sdk(&self) -> Arc<Sdk>;
-
     fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>>;
+    fn get_request_settings(&self) -> RequestSettings;
 }
 
 
@@ -155,7 +155,8 @@ pub struct DashSdk {
     pub config: Config,
     pub runtime: Arc<Runtime>,
     pub sdk: Arc<Sdk>,
-    pub contracts: BTreeMap<Identifier, Arc<DataContract>>
+    pub contracts: BTreeMap<Identifier, Arc<DataContract>>,
+    pub request_settings: RequestSettings
 }
 
 impl EntryPoint for DashSdk {
@@ -171,6 +172,10 @@ impl EntryPoint for DashSdk {
             Some(T) => Some(T.clone()),
             None => None
         }
+    }
+
+    fn get_request_settings(&self) -> RequestSettings {
+        self.request_settings
     }
 }
 
@@ -195,6 +200,10 @@ impl RustSdk {
 
     pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
         self.entry_point.get_data_contract(identifier)
+    }
+
+    pub fn get_request_settings(&self) -> RequestSettings {
+        self.entry_point.get_request_settings()
     }
 }
 
@@ -442,15 +451,16 @@ pub fn create_sdk(
         };
         RustSdk {
             entry_point: Box::new(DashSdk {
-                    config: cfg,
+                config: cfg,
                 runtime: rt.clone(),
-                    // runtime: Builder::new_current_thread()
-                    //     .thread_name("dask-sdk")
-                    //     .enable_all() // Enables all I/O and time drivers
-                    //     .build()
-                    //     .expect("Failed to create a runtime"),
-                    sdk: sdk,
+                sdk: sdk,
                 contracts: Default::default(),
+                request_settings: RequestSettings {
+                    connect_timeout: None,
+                    timeout: None,
+                    retries: Some(5),
+                    ban_failed_address: Some(true),
+                }
             }
             )
         }

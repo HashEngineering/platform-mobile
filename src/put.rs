@@ -364,6 +364,7 @@ impl From<AssetLockProofFFI> for AssetLockProof {
     }
 }
 
+// TODO: deprecate
 #[ferment_macro::export]
 pub fn put_identity(
     identity: Identity,
@@ -417,7 +418,9 @@ pub fn put_identity(
             &sdk,
             asset_lock_proof.into(),
             &private_key,
-            &signer).await;
+            &signer,
+            RequestSettings::default()
+        ).await;
 
         let state_transition = match state_transition_result {
             Ok(st) => st,
@@ -470,14 +473,16 @@ pub fn put_identity_sdk(
             Err(e) => return Err(e.to_string())
         };
         let signer = CallbackSigner::new(signer_callback).expect("signer");
-
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
         trace!("Call Identity::put_to_platform_and_wait_for_response");
         let state_transition_result = Identity::put_to_platform(
             &identity,
             &sdk,
             asset_lock_proof.into(),
             &private_key,
-            &signer).await;
+            &signer,
+            request_settings
+        ).await;
 
         let state_transition = match state_transition_result {
             Ok(st) => st,
@@ -529,13 +534,15 @@ pub fn topup_identity_sdk(
         };
 
         let user_fee_increase = 1;
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
 
         trace!("Call Identity::top_up_identity");
         let identity_result = identity.top_up_identity(
             &sdk,
             asset_lock_proof.into(),
             &private_key,
-            Some(user_fee_increase)
+            Some(user_fee_increase),
+            request_settings
         ).await;
 
         match identity_result {
@@ -545,6 +552,7 @@ pub fn topup_identity_sdk(
     })
 }
 
+// TODO: deprecate
 #[ferment_macro::export]
 pub fn put_document(
     document: Document,
@@ -691,14 +699,10 @@ pub fn put_document_sdk(
             Ok(doc) => doc,
             Err(e) => return Err(e.to_string())
         };
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
 
         let settings = PutSettings {
-            request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: Some(3),
-                ban_failed_address: Some(true),
-            },
+            request_settings,
             identity_nonce_stale_time_s: None,
             user_fee_increase: None,
         };
@@ -777,14 +781,10 @@ pub fn replace_document_sdk(
         let signer = CallbackSigner::new(signer_callback).expect("signer");
 
         trace!("IdentityPublicKey: {:?}", identity_public_key);
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
 
         let settings = PutSettings {
-            request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: Some(3),
-                ban_failed_address: Some(true),
-            },
+            request_settings,
             identity_nonce_stale_time_s: None,
             user_fee_increase: None,
         };
