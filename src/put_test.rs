@@ -55,7 +55,7 @@ fn get_salted_domain_hash(
 #[test]
 fn test_put_documents_for_username() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -64,14 +64,14 @@ fn test_put_documents_for_username() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("AmFRYIZd0oyPa1RX589pwd5G6lPLnkzEb06EsrLWrUU1", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-unit-test-1".to_string();
-    let normalized_label = "my-un1t-test-1".to_string();
-    let full_name = "my-un1t-test-1.dash";
+    let label = "my-unit-test-2".to_string();
+    let normalized_label = "my-un1t-test-2".to_string();
+    let full_name = "my-un1t-test-2.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -109,8 +109,10 @@ fn test_put_documents_for_username() {
     // value = {HashMap@3978}  size = 1
     // "allowSubdomains" -> {Boolean@3983} false
     let mut domain_props: BTreeMap<String, Value> = BTreeMap::new();
-    //let records = vec![(Value::Text("dashUniqueIdentityId".to_string()), Value::Identifier(owner_id.into()))];
-    let records = vec![(Value::Text("dashAliasIdentityId".to_string()), Value::Identifier(owner_id.into()))];
+    let records = vec![(Value::Text("identity".to_string()), Value::Identifier(owner_id.into()))];
+
+    // this is no longer a feature
+    // let records = vec![(Value::Text("dashAliasIdentityId".to_string()), Value::Identifier(owner_id.into()))];
 
     let subdomain_rules = vec![(Value::Text("allowSubdomains".to_string()), Value::Bool(false))];
     domain_props.insert("records".to_string(), Value::Map(records));
@@ -161,7 +163,7 @@ fn test_put_documents_for_username() {
             .document_type_for_name(&"preorder")
             .expect("expected a profile document type");
 
-        let hex_private_key = "fe71b90f0c1ffca2738afad90f7d0790c6529c4341462ca4165f070f8f934c9c";
+        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -255,7 +257,7 @@ fn test_put_documents_for_username() {
 #[test]
 fn test_put_txmetadata_contract() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -264,7 +266,7 @@ fn test_put_txmetadata_contract() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("AmFRYIZd0oyPa1RX589pwd5G6lPLnkzEb06EsrLWrUU1", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -287,7 +289,7 @@ fn test_put_txmetadata_contract() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let hex_private_key = "fe71b90f0c1ffca2738afad90f7d0790c6529c4341462ca4165f070f8f934c9c";
+        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
