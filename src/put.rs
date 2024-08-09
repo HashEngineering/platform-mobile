@@ -63,8 +63,8 @@ use dpp::state_transition::StateTransition;
 //use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
 pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
     match &response.version {
-        Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(responseV0)) => {
-            return match &responseV0.result {
+        Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(response_v0)) => {
+            return match &response_v0.result {
                 Some(wait_for_state_transition_result_response_v0::Result::Error(error)) => Some(&error),
                 _ => None
             }

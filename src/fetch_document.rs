@@ -62,7 +62,7 @@ pub fn get_document_with_callbacks(quorum_public_key_callback: u64,
 )-> Identifier {
     let it = document_read_with_callbacks(quorum_public_key_callback, data_contract_callback);
     match it {
-        Document::V0(docV0) => docV0.owner_id,
+        Document::V0(doc_v0) => doc_v0.owner_id,
         _ => Identifier::default()
     }
 }
