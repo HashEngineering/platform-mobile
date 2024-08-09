@@ -130,12 +130,18 @@ impl ContextProvider for CallbackContextProvider {
         let mut key: [u8; 48] = [0; 48]; // To store the result
 
         (self.quorum_public_key_callback)(quorum_type, quorum_hash.as_ptr(), core_chain_locked_height, key.as_mut_ptr());
-        tracing::info!("get_quorum_public_key {:?}", key);
+        tracing::info!("get_quorum_public_key: returning {:?}", key);
 
-        self.quorum_public_keys_cache
-            .put((quorum_hash, quorum_type), key);
+        if key == [0; 48] {
+            let message = format!("quorum not found {}:{:?}", quorum_type, quorum_hash);
+            Err(ContextProviderError::InvalidQuorum(message))
+        } else {
+            // store key in cache and return Ok
+            self.quorum_public_keys_cache
+                .put((quorum_hash, quorum_type), key);
 
-        Ok(key)
+            Ok(key)
+        }
     }
 
     fn get_data_contract(
