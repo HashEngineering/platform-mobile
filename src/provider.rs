@@ -12,6 +12,7 @@ use platform_value::converter::serde_json;
 use dash_sdk::platform::Fetch;
 use dash_sdk::{Sdk, Error};
 use platform_value::types::binary_data::BinaryData;
+use tokio::runtime::Handle;
 use crate::config::Config;
 
 // not supported
@@ -41,7 +42,6 @@ type DataContractCallback = extern "C" fn(id: &Identifier) -> DataContract;
 ///
 /// Example [ContextProvider] used by the Sdk for testing purposes.
 ///
-//#[ferment_macro::opaque]
 pub struct CallbackContextProvider {
     pub quorum_public_key_callback: QuorumPublicKeyCallback,
     pub data_contract_callback: DataContractCallback,
@@ -160,22 +160,12 @@ impl ContextProvider for CallbackContextProvider {
             }
         };
 
-        let handle = match tokio::runtime::Handle::try_current() {
-            Ok(handle) => handle,
-            // not an error, we rely on the caller to provide a data contract using
-            Err(e) => {
-                tracing::warn!(
-                    error = e.to_string(),
-                    "data contract cache miss and no tokio runtime detected, skipping fetch"
-                );
-                return Ok(None);
-            }
-        };
-
-        let data_contract = handle
-            .block_on(DataContract::fetch(sdk, *data_contract_id))
-            .map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))?;
-
+        let handle = Handle::current();
+        let data_contract = tokio::task::block_in_place(|| {
+            handle.block_on(async {
+                DataContract::fetch(&sdk, *data_contract_id).await
+            }).map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))
+        })?;
         if let Some(ref dc) = data_contract {
             self.data_contracts_cache.put(*data_contract_id, dc.clone());
         };

@@ -421,7 +421,7 @@ pub fn create_sdk(
 ) -> RustSdk {
     setup_logs();
     let rt = Arc::new(
-        Builder::new_current_thread()
+        Builder::new_multi_thread()
         .enable_all() // Enables all I/O and time drivers
         .build()
         .expect("Failed to create a runtime")
@@ -462,7 +462,7 @@ pub fn create_dash_sdk(
 ) -> DashSdk {
     setup_logs();
     let rt = Arc::new(
-        Builder::new_current_thread()
+        Builder::new_multi_thread()
             .enable_all() // Enables all I/O and time drivers
             .build()
             .expect("Failed to create a runtime")
