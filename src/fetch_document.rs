@@ -466,8 +466,9 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
             Some(s) => Some(s.into()),
             None => None
         };
+        let settings = unsafe { (*rust_sdk).entry_point.get_request_settings() };
         tracing::warn!("fetching many... query created");
-        let docs = Document::fetch_many(&sdk, all_docs_query)
+        let docs = Document::fetch_many_with_settings(&sdk, all_docs_query, settings)
             .await;
         match docs {
             Ok(docs) => {
@@ -787,7 +788,6 @@ fn docs_full_query_test() {
 #[test]
 fn docs_full_query_sdk_test() {
     let mut sdk = create_sdk(0, 0);
-    tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
@@ -804,6 +804,39 @@ fn docs_full_query_sdk_test() {
     match docs_result {
         Ok(docs) => {
             tracing::info!("query results");
+            for document in docs {
+                // Use `document` here
+                tracing::info!("{:?}", document); // Assuming Document implements Debug
+            }
+        }
+        Err(e) => panic!("{}", e)
+    }
+}
+
+#[test]
+fn docs_startswith_query_sdk_test() {
+    let mut sdk = create_sdk(0, 0);
+    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let docs_result = unsafe {
+        fetch_documents_with_query_and_sdk(
+            &mut sdk,
+            contract_id,
+            "domain".to_string(),
+            vec![
+                WhereClause { field: "normalizedLabel".into(), value: Value::Text("b0b1ee".into()), operator: WhereOperator::StartsWith },
+                WhereClause { field: "normalizedParentDomainName".into(), value: Value::Text("dash".into()), operator: WhereOperator::Equal }
+            ],
+            vec![
+                OrderClause { field: "normalizedLabel".into(), ascending: true }
+            ],
+            100,
+            None
+        )
+    };
+
+    match docs_result {
+        Ok(docs) => {
+            tracing::info!("query results: {}", docs.len());
             for document in docs {
                 // Use `document` here
                 tracing::info!("{:?}", document); // Assuming Document implements Debug
