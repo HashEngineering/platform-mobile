@@ -15,7 +15,7 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use dash_sdk::mock::provider::GrpcContextProvider;
 use dash_sdk::{RequestSettings, Sdk};
-use ferment_interfaces::boxed;
+use ferment_interfaces::{boxed, unbox_any};
 use tokio::runtime::{Builder, Runtime};
 use crate::logs::setup_logs;
 use crate::provider::CallbackContextProvider;
@@ -455,7 +455,11 @@ pub fn create_sdk(
     })
 }
 
-// #[ferment_macro::export]
+pub fn destroy_sdk(rust_sdk: * mut RustSdk) {
+    unsafe  { unbox_any(rust_sdk) };
+}
+
+#[ferment_macro::export]
 pub fn create_dash_sdk(
     quorum_public_key_callback: u64,
     data_contract_callback: u64
@@ -491,6 +495,10 @@ pub fn create_dash_sdk(
             }
         }
     })
+}
+
+pub fn destroy_dash_sdk(rust_sdk: * mut DashSdk) {
+    unsafe  { unbox_any(rust_sdk) };
 }
 
 // #[ferment_macro::export]
@@ -661,6 +669,16 @@ pub fn create_dash_sdk(
 
 
 #[test]
-fn test_dash_sdk() {
+fn test_rust_sdk() {
     let my_sdk = create_sdk(0, 0);
+    let my_boxed_sdk = boxed(my_sdk);
+    destroy_sdk(my_boxed_sdk);
+}
+
+
+#[test]
+fn test_dash_sdk() {
+    let my_sdk = create_dash_sdk(0, 0);
+    let my_boxed_sdk = boxed(my_sdk);
+    destroy_dash_sdk(my_boxed_sdk);
 }
