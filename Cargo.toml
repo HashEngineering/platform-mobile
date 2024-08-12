@@ -45,6 +45,9 @@ dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
 ], default-features = false, branch = "master" }
 rand = "0.8.5"
 
+[target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2.155"
+
 #[build-dependencies]
 #cbindgen = "0.26.0"
 #ferment = { path = "../ferment/ferment" }
