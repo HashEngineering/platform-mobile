@@ -13,13 +13,14 @@ use dash_sdk::{RequestSettings, Sdk};
 use dash_sdk::dapi_client::DapiClientError;
 use dashcore::hashes::{Hash, sha256d};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
-use dpp::data_contract::{data_contract, DataContract, DataContractFactory, DataContractV0};
+use dpp::data_contract::{DataContract, DataContractFactory};
+//use dpp::data_contract::v0::data_contract::DataContractV0;
 use dpp::data_contract::created_data_contract::CreatedDataContract;
 use dpp::data_contract::document_type::methods::DocumentTypeV0Methods;
 use dpp::document::{Document, DocumentV0Getters};
 use dpp::document::v0::DocumentV0;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
-use dpp::identity::{IdentityPublicKey, KeyType, Purpose, SecurityLevel};
+use dpp::identity::identity_public_key::{IdentityPublicKey, KeyType, Purpose, SecurityLevel};
 use dpp::ProtocolError;
 use dpp::state_transition::StateTransition;
 use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
@@ -31,9 +32,12 @@ use simple_signer::signer::SimpleSigner;
 use tokio::runtime::Builder;
 use tracing::trace;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 use crate::put::{get_wait_result_error, wait_for_response_concurrent};
 use dash_sdk::Error;
+use crate::config::RustSdk;
+use crate::config::create_sdk;
+
 fn get_salted_domain_hash(
     pre_order_salt_raw: &[u8],
     full_name: &str
@@ -51,7 +55,7 @@ fn get_salted_domain_hash(
 #[test]
 fn test_put_documents_for_username() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -60,14 +64,14 @@ fn test_put_documents_for_username() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A7UqP4ItvSFIYHH9nq1kB4mbmxBiwD34hxhjHNxMNRMu", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
     let preorder_salt = entropy_generator.generate().unwrap();
-    let label = "my-unit-test-4".to_string();
-    let normalized_label = "my-un1t-test-4".to_string();
-    let full_name = "my-un1t-test-4.dash";
+    let label = "my-unit-test-2".to_string();
+    let normalized_label = "my-un1t-test-2".to_string();
+    let full_name = "my-un1t-test-2.dash";
     let mut preorder_props: BTreeMap<String, Value> = BTreeMap::new();
     preorder_props.insert(
         "saltedDomainHash".to_string(),
@@ -94,7 +98,7 @@ fn test_put_documents_for_username() {
     // "records" -> {HashMap@3968}  size = 1
     // key = "records"
     // value = {HashMap@3968}  size = 1
-    // "dashUniqueIdentityId" -> {Identifier@3728} 6aWnykZbX81RDkSqrW5nwqp9wvaxebibhvk3Te1ARght
+    // "dashUniqueIdentityId" -> {Identifier@3728} 9Qv1fnN59iNWYBmQNk3a63N1ciW7oEKr6dXNQH8ryUaj
     // "label" -> "bob1"
     // "preorderSalt" -> {byte[32]@3971} [106, 10, 84, 11, 1, -56, 70, 106, 69, -53, -1, 91, -103, -40, 64, -49, 20, -82, 80, 4, 43, 9, -79, 118, -71, 118, 89, 78, 52, 18, 44, -75]
     // "normalizedParentDomainName" -> "dash"
@@ -105,8 +109,10 @@ fn test_put_documents_for_username() {
     // value = {HashMap@3978}  size = 1
     // "allowSubdomains" -> {Boolean@3983} false
     let mut domain_props: BTreeMap<String, Value> = BTreeMap::new();
-    //let records = vec![(Value::Text("dashUniqueIdentityId".to_string()), Value::Identifier(owner_id.into()))];
-    let records = vec![(Value::Text("dashAliasIdentityId".to_string()), Value::Identifier(owner_id.into()))];
+    let records = vec![(Value::Text("identity".to_string()), Value::Identifier(owner_id.into()))];
+
+    // this is no longer a feature
+    // let records = vec![(Value::Text("dashAliasIdentityId".to_string()), Value::Identifier(owner_id.into()))];
 
     let subdomain_rules = vec![(Value::Text("allowSubdomains".to_string()), Value::Bool(false))];
     domain_props.insert("records".to_string(), Value::Map(records));
@@ -136,12 +142,8 @@ fn test_put_documents_for_username() {
     );
 
     setup_logs();
-    // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
+    let rust_sdk = create_sdk(0, 0);
+    let rt = unsafe { rust_sdk.entry_point.get_runtime() };
 
 
     // Execute the async block using the Tokio runtime
@@ -149,7 +151,7 @@ fn test_put_documents_for_username() {
         // Your async code here
         let cfg = Config::new();
         tracing::warn!("Setting up SDK");
-        let sdk = cfg.setup_api().await;
+        let sdk = rust_sdk.entry_point.get_sdk();
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
@@ -161,7 +163,7 @@ fn test_put_documents_for_username() {
             .document_type_for_name(&"preorder")
             .expect("expected a profile document type");
 
-        let hex_private_key = "25f1694aac2fe1f4cb910c302f84fdc4c091fd6be1b9a6fc85189f471903535d";
+        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -247,7 +249,7 @@ fn test_put_documents_for_username() {
 
         Ok::<Document, ProtocolError>(second_document_result)
     }) {
-        Ok(doc) => println!("Success!"),
+        Ok(doc) => tracing::info!("Success!"),
         Err(err) => panic!("{:?}", err.to_string())
     };
 }
@@ -255,7 +257,7 @@ fn test_put_documents_for_username() {
 #[test]
 fn test_put_txmetadata_contract() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("Cxo56ta5EMrWok8yp2Gpzm8cjBoa3mGYKZaAp9yqD3gW", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -264,7 +266,7 @@ fn test_put_txmetadata_contract() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A7UqP4ItvSFIYHH9nq1kB4mbmxBiwD34hxhjHNxMNRMu", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -287,7 +289,7 @@ fn test_put_txmetadata_contract() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let hex_private_key = "25f1694aac2fe1f4cb910c302f84fdc4c091fd6be1b9a6fc85189f471903535d";
+        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -330,11 +332,11 @@ fn test_put_txmetadata_contract() {
             &sdk,
             identity_public_key,
             &signer
-        ).await.or_else(|e| Err(ProtocolError::Generic("failed to create data contract".into())));
+        ).await.or_else(|e| Err(ProtocolError::Generic(e.to_string())));
 
         Ok::<DataContract, ProtocolError>(data_contract_result.unwrap())
     }) {
-        Ok(data_contract) => println!("Success!\n{}: {:?}", data_contract.id(), data_contract),
+        Ok(data_contract) => tracing::info!("Success!\n{}: {:?}", data_contract.id(), data_contract),
         Err(err) => panic!("{:?}", err.to_string())
     };
 }

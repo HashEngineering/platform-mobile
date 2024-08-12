@@ -1,7 +1,7 @@
 pub mod fetch_identity;
 pub mod identity;
-mod config;
-mod provider;
+pub mod config;
+pub mod provider;
 pub mod clone;
 pub mod operators;
 pub mod fetch_document;
@@ -10,6 +10,7 @@ pub mod custom;
 pub mod data_contracts;
 mod put_test;
 pub mod core;
+mod logs;
 
 extern crate ferment_macro;
 

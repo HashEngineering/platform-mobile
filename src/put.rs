@@ -11,16 +11,19 @@ use dash_sdk::platform::transition::put_document::PutDocument;
 use dash_sdk::platform::transition::put_identity::PutIdentity;
 use dash_sdk::platform::transition::put_settings::PutSettings;
 use dash_sdk::platform::transition::TxId;
-use dashcore::hashes::Hash;
+use dashcore::hashes::{Hash, sha256};
+use dashcore::key::Secp256k1;
+use dashcore::secp256k1::{Message, SecretKey};
 use dashcore::signer::sign;
 use dpp::bincode::{Decode, Encode};
-use dpp::consensus::ConsensusError;
-use dpp::dashcore::{InstantLock, Network, OutPoint, PrivateKey, Transaction, Txid};
+use dashcore::blockdata::transaction::OutPoint;
+use dpp::dashcore::{InstantLock, Network, PrivateKey, Transaction, Txid};
 use dpp::dashcore::bls_sig_utils::BLSSignature;
 use dpp::dashcore::consensus::Decodable;
 use dpp::dashcore::hash_types::CycleHash;
 use dpp::dashcore::hashes::sha256d;
-use dpp::data_contract::{DataContract, DataContractV0};
+use dpp::data_contract::{DataContract};
+//use dpp::data_contract::v0::data_contract::DataContractV0;
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract::V0;
 use dpp::data_contract::document_type::DocumentType;
@@ -31,35 +34,37 @@ use dpp::identity::identity::Identity;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
 use dpp::identity::identity_public_key::IdentityPublicKey;
 use dpp::identity::identity_public_key::v0::IdentityPublicKeyV0;
-use dpp::identity::{KeyType, Purpose, SecurityLevel};
+use dpp::identity::identity_public_key::{KeyID, KeyType, Purpose, SecurityLevel};
 use dpp::identity::signer::Signer;
 use dpp::identity::state_transition::asset_lock_proof::chain::ChainAssetLockProof;
-use dpp::identity::state_transition::asset_lock_proof::InstantAssetLockProof;
-use dpp::prelude::{AssetLockProof, BlockHeight, CoreBlockHeight};
+use dpp::identity::state_transition::asset_lock_proof::{AssetLockProof, InstantAssetLockProof};
+use dpp::prelude::{BlockHeight, CoreBlockHeight, UserFeeIncrease};
+//use dpp::prelude::{AssetLockProof, BlockHeight, CoreBlockHeight};
 use dpp::ProtocolError;
 use dpp::util::entropy_generator::{DefaultEntropyGenerator, EntropyGenerator};
-use platform_value::{Identifier, Value};
+use platform_value::{Identifier, IdentifierBytes32, Value};
 use platform_value::string_encoding::Encoding;
 use platform_value::types::binary_data::BinaryData;
 use platform_version::version::PlatformVersion;
+use simple_signer::signer::SimpleSigner;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
 use tracing::trace;
 use rand::random;
-use simple_signer::signer::SimpleSigner;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 use crate::provider::Cache;
-
+use crate::config::RustSdk;
 use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
 use dapi_grpc::platform::v0::wait_for_state_transition_result_response::{Version, wait_for_state_transition_result_response_v0};
+use dash_sdk::platform::transition::top_up_identity::TopUpIdentity;
 use dpp::state_transition::StateTransition;
 
 //use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
 pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
     match &response.version {
-        Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(responseV0)) => {
-            return match &responseV0.result {
+        Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(response_v0)) => {
+            return match &response_v0.result {
                 Some(wait_for_state_transition_result_response_v0::Result::Error(error)) => Some(&error),
                 _ => None
             }
@@ -186,6 +191,7 @@ pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data
 // pub type SignerCallback3 = extern "C" fn(key: Vec<u8>, data: Vec<u8>, result: Vec<u8>) -> u32;
 //#[ferment_macro::export]
 //type SignerCallback = extern "C" fn(identity_public_key: * const u8, data: * const u8) -> * const u8;
+#[derive(Debug)]
 pub struct CallbackSigner {
     signer_callback: SignerCallback
 }
@@ -235,8 +241,8 @@ pub fn put_identity_create(identity: Identity, signer_callback: u64) -> Identity
     let signer = CallbackSigner::new(signer_callback).expect("signer not valid");
     let data = [0u8; 1024];
     match signer.sign(&IdentityPublicKey::random_authentication_key(1, None, PlatformVersion::latest()), data.as_slice()) {
-        Ok(sig) => println!("signature: {:?}", sig),
-        Err(e) => println!("signature error: {}", e)
+        Ok(sig) => tracing::info!("signature: {:?}", sig),
+        Err(e) => tracing::info!("signature error: {}", e)
     }
     identity
 }
@@ -249,20 +255,27 @@ pub struct OutPointFFI {
     /// The index of the referenced output in its transaction's vout.
     pub vout: u32,
 }
+//
+// #[allow(non_snake_case)]
+// #[ferment_macro::export]
+// pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
+//     a.clone()
+// }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
-pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
+pub fn OutPointFFI_clone(a: OutPoint) -> OutPoint {
     a.clone()
 }
 
-impl From<OutPointFFI> for OutPoint {
-    fn from(value: OutPointFFI) -> Self {
-        Self {
-            txid: Txid::from_raw_hash(sha256d::Hash::from_slice(value.txid.as_slice()).unwrap()),
-            vout: value.vout,
-        }
-    }
-}
+// impl From<OutPointFFI> for OutPoint {
+//     fn from(value: OutPointFFI) -> Self {
+//         Self {
+//             txid: Txid::from_raw_hash(sha256d::Hash::from_slice(value.txid.as_slice()).unwrap()),
+//             vout: value.vout,
+//         }
+//     }
+// }
 
 // #[derive(Clone, Eq, PartialEq)]
 // /// Instant send lock is a mechanism used by the Dash network to
@@ -287,9 +300,10 @@ pub struct ChainAssetLockProofFFI {
     /// Core height on which the asset lock transaction was chain locked or higher
     pub core_chain_locked_height: u32,
     /// A reference to Asset Lock Special Transaction ID and output index in the payload
-    pub out_point: OutPointFFI,
+    pub out_point: OutPoint,
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
 pub fn ChainAssetLockProofFFI_clone(a: ChainAssetLockProofFFI) -> ChainAssetLockProofFFI {
     a.clone()
@@ -314,6 +328,8 @@ pub struct InstantAssetLockProofFFI {
     /// Index of the output in the transaction payload
     pub output_index: u32,
 }
+
+#[allow(non_snake_case)]
 
 #[ferment_macro::export]
 pub fn InstantAssetLockProofFFI_clone(a: InstantAssetLockProofFFI) -> InstantAssetLockProofFFI {
@@ -348,6 +364,7 @@ impl From<AssetLockProofFFI> for AssetLockProof {
     }
 }
 
+// TODO: deprecate
 #[ferment_macro::export]
 pub fn put_identity(
     identity: Identity,
@@ -359,6 +376,7 @@ pub fn put_identity(
     is_testnet: bool
 ) -> Result<Identity, String> {
     setup_logs();
+
     // Create a new Tokio runtime
     //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
     let rt = Builder::new_current_thread()
@@ -400,7 +418,9 @@ pub fn put_identity(
             &sdk,
             asset_lock_proof.into(),
             &private_key,
-            &signer).await;
+            &signer,
+            RequestSettings::default()
+        ).await;
 
         let state_transition = match state_transition_result {
             Ok(st) => st,
@@ -422,6 +442,118 @@ pub fn put_identity(
 }
 
 #[ferment_macro::export]
+pub fn put_identity_sdk(
+    rust_sdk: *mut RustSdk,
+    identity: Identity,
+    asset_lock_proof: AssetLockProofFFI,
+    asset_lock_proof_private_key: Vec<u8>,
+    signer_callback: u64,
+    is_testnet: bool
+) -> Result<Identity, String> {
+    setup_logs();
+
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up network, private key and signer");
+
+        let network = if is_testnet {
+            Network::Testnet
+        } else {
+            Network::Dash
+        };
+        let private_key = match PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network) {
+            Ok(pk) => pk,
+            Err(e) => return Err(e.to_string())
+        };
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+        trace!("Call Identity::put_to_platform_and_wait_for_response");
+        let state_transition_result = Identity::put_to_platform(
+            &identity,
+            &sdk,
+            asset_lock_proof.into(),
+            &private_key,
+            &signer,
+            request_settings
+        ).await;
+
+        let state_transition = match state_transition_result {
+            Ok(st) => st,
+            Err(err) => return Err(err.to_string())
+        };
+
+        let identity_result = wait_for_response_concurrent_identity(
+            &identity,
+            &sdk,
+            &state_transition
+        ).await;
+
+        return match identity_result {
+            Ok(identity) => Ok(identity),
+            Err(e) => Err(e.to_string())
+        }
+    })
+}
+
+#[ferment_macro::export]
+pub fn topup_identity_sdk(
+    rust_sdk: *mut RustSdk,
+    identity: Identity,
+    asset_lock_proof: AssetLockProofFFI,
+    asset_lock_proof_private_key: Vec<u8>,
+    is_testnet: bool
+) -> Result<u64, String> {
+    setup_logs();
+
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up network, private key and signer");
+
+        let network = if is_testnet {
+            Network::Testnet
+        } else {
+            Network::Dash
+        };
+        let private_key = match PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network) {
+            Ok(pk) => pk,
+            Err(e) => return Err(e.to_string())
+        };
+
+        let user_fee_increase = 1;
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+
+        trace!("Call Identity::top_up_identity");
+        let identity_result = identity.top_up_identity(
+            &sdk,
+            asset_lock_proof.into(),
+            &private_key,
+            Some(user_fee_increase),
+            request_settings
+        ).await;
+
+        match identity_result {
+            Ok(identity) => Ok(identity),
+            Err(err) => Err(err.to_string())
+        }
+    })
+}
+
+// TODO: deprecate
+#[ferment_macro::export]
 pub fn put_document(
     document: Document,
     data_contract_id: Identifier,
@@ -435,8 +567,7 @@ pub fn put_document(
 ) -> Result<Document, String> {
 
     setup_logs();
-    // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
+
     let rt = Builder::new_current_thread()
         .enable_all() // Enables all I/O and time drivers
         .build()
@@ -491,9 +622,87 @@ pub fn put_document(
             request_settings: RequestSettings {
                 connect_timeout: None,
                 timeout: None,
-                retries: Some(3),
+                retries: None, //Some(2),
                 ban_failed_address: Some(true),
             },
+            identity_nonce_stale_time_s: None,
+            user_fee_increase: None,
+        };
+
+        trace!("Call Document::put_to_platform_and_wait_for_response");
+        let document_result = new_document.put_to_platform_and_wait_for_response(
+            &sdk,
+            document_type.to_owned_document_type(),
+            entropy,
+            identity_public_key,
+            Arc::new(data_contract),
+            &signer,
+            Some(settings)
+        ).await;
+
+        document_result.map_err(|err| err.to_string())
+    })
+}
+
+#[ferment_macro::export]
+pub fn put_document_sdk(
+    rust_sdk: *mut RustSdk,
+    document: Document,
+    data_contract_id: Identifier,
+    document_type_str: String,
+    identity_public_key: IdentityPublicKey,
+    block_height: BlockHeight,
+    core_block_height: CoreBlockHeight,
+    signer_callback: u64
+) -> Result<Document, String> {
+
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up entropy, data contract and signer");
+
+        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
+            Ok(Some(contract)) => contract,
+            Ok(None) => return Err("no contract".to_string()),
+            Err(e) => return Err(e.to_string())
+        };
+
+        let document_type = data_contract
+            .document_type_for_name(&document_type_str)
+            .expect("expected a profile document type");
+
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let entropy_generator = DefaultEntropyGenerator;
+        let entropy = entropy_generator.generate().unwrap();
+        //let document_entropy = entropy_generator.generate().unwrap();
+        trace!("document_entropy: {:?}", entropy);
+        trace!("IdentityPublicKey: {:?}", identity_public_key);
+
+        // recreate the document using the same entropy value as when it is submitted below
+        let new_document_result = document_type.create_document_from_data(
+            document.properties().into(),
+            document.owner_id(),
+            block_height,
+            core_block_height,
+            entropy,
+            PlatformVersion::latest()
+        );
+
+        let new_document = match new_document_result {
+            Ok(doc) => doc,
+            Err(e) => return Err(e.to_string())
+        };
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+
+        let settings = PutSettings {
+            request_settings,
             identity_nonce_stale_time_s: None,
             user_fee_increase: None,
         };
@@ -529,6 +738,69 @@ pub fn put_document(
         ).await.or_else(|err|Err(err.to_string()))?;
 
         Ok(result_document)
+    })
+}
+
+#[ferment_macro::export]
+pub fn replace_document_sdk(
+    rust_sdk: *mut RustSdk,
+    document: Document,
+    data_contract_id: Identifier,
+    document_type_str: String,
+    identity_public_key: IdentityPublicKey,
+    block_height: BlockHeight,
+    core_block_height: CoreBlockHeight,
+    signer_callback: u64,
+    quorum_key_callback: u64,
+    d: u64
+) -> Result<Document, String> {
+
+    setup_logs();
+    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        // Your async code here
+        let cfg = Config::new();
+        trace!("Setting up SDK");
+        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        trace!("Finished SDK, {:?}", sdk);
+        trace!("Set up entropy, data contract and signer");
+
+        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
+            Ok(Some(contract)) => contract,
+            Ok(None) => return Err("no contract".to_string()),
+            Err(e) => return Err(e.to_string())
+        };
+
+        let document_type = data_contract
+            .document_type_for_name(&document_type_str)
+            .expect("expected a profile document type");
+
+        let signer = CallbackSigner::new(signer_callback).expect("signer");
+
+        trace!("IdentityPublicKey: {:?}", identity_public_key);
+        let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+
+        let settings = PutSettings {
+            request_settings,
+            identity_nonce_stale_time_s: None,
+            user_fee_increase: None,
+        };
+
+        trace!("Call Document::replace_on_platform_and_wait_for_response");
+        // TODO: add the concurrent wait function
+        let document_result = document.replace_on_platform_and_wait_for_response(
+            &sdk,
+            document_type.to_owned_document_type(),
+            identity_public_key,
+            Arc::new(data_contract),
+            &signer,
+            Some(settings)
+        ).await;
+
+        document_result.map_err(|err| err.to_string())
     })
 }
 

@@ -8,7 +8,7 @@ use platform_value::{Identifier, IdentifierBytes32};
 use platform_value::string_encoding::Encoding;
 use tokio::runtime::Builder;
 use crate::config::Config;
-use crate::fetch_identity::setup_logs;
+use crate::logs::setup_logs;
 
 #[derive(Clone, Debug)]
 #[ferment_macro::export]
@@ -19,6 +19,7 @@ pub struct DataContractFFI {
     pub version: u32
 }
 
+#[allow(non_snake_case)]
 #[ferment_macro::export]
 pub fn DataContractFFI_clone(value: DataContractFFI) -> DataContractFFI {
     value.clone()
@@ -41,7 +42,7 @@ impl Into<DataContractFFI> for DataContract {
 }
 
 #[ferment_macro::export]
-pub fn fetch_data_contract(contract_id: &Identifier,
+pub fn fetch_data_contract(contract_id: Identifier,
                                  quorum_public_key_callback: u64,
                                  data_contract_callback: u64) -> Result<DataContractFFI, String> {
     setup_logs();
@@ -79,11 +80,11 @@ fn get_data_contract_test() {
     let config = Config::new();
 
     let data_contract = fetch_data_contract(
-        &Identifier(IdentifierBytes32(config.existing_data_contract_id.into())),
+        Identifier(IdentifierBytes32(config.existing_data_contract_id.into())),
         0,
         0
     ).unwrap();
-    println!("dpns: {:?}", data_contract);
+    tracing::info!("dpns: {:?}", data_contract);
 }
 
 #[test]
@@ -91,7 +92,7 @@ fn get_missing_data_contract_test() {
     let config = Config::new();
 
     let data_contract_result = fetch_data_contract(
-        &Identifier::from_string("Fds5DDfXoLwpUZ71AAVYZP1uod8S7Ze2bR28JExBvZKR", Encoding::Base58).expect("identifier"),
+        Identifier::from_string("Fds5DDfXoLwpUZ71AAVYZP1uod8S7Ze2bR28JExBvZKR", Encoding::Base58).expect("identifier"),
         0,
         0
     );
