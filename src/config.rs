@@ -15,10 +15,11 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use dash_sdk::mock::provider::GrpcContextProvider;
 use dash_sdk::{RequestSettings, Sdk};
+use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use ferment_interfaces::{boxed, unbox_any};
 use tokio::runtime::{Builder, Runtime};
 use crate::logs::setup_logs;
-use crate::provider::CallbackContextProvider;
+use crate::provider::{Cache, CallbackContextProvider};
 
 /// Existing document ID
 ///
@@ -140,6 +141,7 @@ pub trait EntryPoint {
     fn get_runtime(&self) -> Arc<Runtime>;
     fn get_sdk(&self) -> Arc<Sdk>;
     fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>>;
+    fn set_data_contract(&mut self, data_contract: &DataContract);
     fn get_request_settings(&self) -> RequestSettings;
 }
 
@@ -148,7 +150,7 @@ pub struct DashSdk {
     pub config: Config,
     pub runtime: Arc<Runtime>,
     pub sdk: Arc<Sdk>,
-    pub contracts: BTreeMap<Identifier, Arc<DataContract>>,
+    pub data_contract_cache: Arc<Cache<Identifier, DataContract>>,
     pub request_settings: RequestSettings
 }
 
@@ -161,10 +163,14 @@ impl EntryPoint for DashSdk {
     }
 
     fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
-        match self.contracts.get(identifier) {
+        match self.data_contract_cache.get(identifier) {
             Some(T) => Some(T.clone()),
             None => None
         }
+    }
+
+    fn set_data_contract(&mut self, data_contract: &DataContract) {
+        self.data_contract_cache.put(data_contract.id(), data_contract.clone());
     }
 
     fn get_request_settings(&self) -> RequestSettings {
@@ -188,6 +194,10 @@ impl RustSdk {
 
     pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
         self.entry_point.get_data_contract(identifier)
+    }
+
+    pub fn add_data_contract(&mut self, data_contract: &DataContract) {
+        self.entry_point.set_data_contract(data_contract)
     }
 
     pub fn get_request_settings(&self) -> RequestSettings {
@@ -219,37 +229,37 @@ pub struct DashSharedCoreWithRuntime {
 }
 
 //#[ferment_macro::export]
-impl DashSharedCoreWithRuntime {
-    pub fn new(quorum_public_key_callback: u64, data_contract_callback: u64) -> Self {
-        setup_logs();
-        let rt =
-            Builder::new_current_thread()
-                .enable_all() // Enables all I/O and time drivers
-                .build()
-                .expect("Failed to create a runtime");
-
-        // Execute the async block using the Tokio runtime
-        rt.block_on(async {
-            let cfg = Config::new();
-            let sdk = if quorum_public_key_callback != 0 {
-                // use the callbacks to obtain quorum public keys
-                cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
-            } else {
-                // use Dash Core for quorum public keys
-                cfg.setup_api().await
-            };
-
-            let rt = Builder::new_current_thread()
-                    .enable_all() // Enables all I/O and time drivers
-                    .build()
-                    .expect("Failed to create a runtime");
-            Self {
-                sdk: boxed(sdk.as_ref().clone()),
-                runtime: boxed(rt)
-            }
-        })
-    }
-}
+// impl DashSharedCoreWithRuntime {
+//     pub fn new(quorum_public_key_callback: u64, data_contract_callback: u64) -> Self {
+//         setup_logs();
+//         let rt =
+//             Builder::new_current_thread()
+//                 .enable_all() // Enables all I/O and time drivers
+//                 .build()
+//                 .expect("Failed to create a runtime");
+//
+//         // Execute the async block using the Tokio runtime
+//         rt.block_on(async {
+//             let cfg = Config::new();
+//             let sdk = if quorum_public_key_callback != 0 {
+//                 // use the callbacks to obtain quorum public keys
+//                 cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+//             } else {
+//                 // use Dash Core for quorum public keys
+//                 cfg.setup_api().await
+//             };
+//
+//             let rt = Builder::new_current_thread()
+//                     .enable_all() // Enables all I/O and time drivers
+//                     .build()
+//                     .expect("Failed to create a runtime");
+//             Self {
+//                 sdk: boxed(sdk.as_ref().clone()),
+//                 runtime: boxed(rt)
+//             }
+//         })
+//     }
+// }
 
 // #[ferment_macro::opaque]
 // pub struct RustSdk5 {
@@ -368,20 +378,39 @@ impl Config {
     }
 
     pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<dash_sdk::Sdk> {
-        let context_provider = CallbackContextProvider::new(
+        let mut context_provider = CallbackContextProvider::new(
             q,
             d,
             None,
+            Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero"))),
             NonZeroUsize::new(100).expect("Non Zero"),
-            NonZeroUsize::new(100).expect("Non Zero")
         ).expect("context provider");
-        let context_provider = Arc::new(std::sync::Mutex::new(context_provider));
         let mut sdk = {
             // Dump all traffic to disk
             let builder = dash_sdk::SdkBuilder::new(self.address_list());
-
             builder.build().expect("cannot initialize api")
         };
+        // not ideal because context provider has a clone of the sdk
+        context_provider.set_sdk(Some(Arc::new(sdk.clone())));
+        sdk.set_context_provider(context_provider);
+        sdk.into()
+    }
+
+    pub async fn setup_api_with_callbacks_cache(&self, q: u64, d: u64, data_contract_cache: Arc<Cache<Identifier, DataContract>>) -> Arc<dash_sdk::Sdk> {
+        let mut context_provider = CallbackContextProvider::new(
+            q,
+            d,
+            None,
+            data_contract_cache,
+            NonZeroUsize::new(100).expect("Non Zero")
+        ).expect("context provider");
+        let mut sdk = {
+            // Dump all traffic to disk
+            let builder = dash_sdk::SdkBuilder::new(self.address_list());
+            builder.build().expect("cannot initialize api")
+        };
+        // not ideal because context provider has a clone of the sdk
+        context_provider.set_sdk(Some(Arc::new(sdk.clone())));
         sdk.set_context_provider(context_provider);
         sdk.into()
     }
@@ -430,19 +459,22 @@ pub fn create_sdk(
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let cfg = Config::new();
+        tracing::info!("cfg created");
+        let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+            cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
         } else {
             // use Dash Core for quorum public keys
             cfg.setup_api().await
         };
+        tracing::info!("sdk created");
         RustSdk {
             entry_point: Box::new(DashSdk {
                 config: cfg,
                 runtime: rt.clone(),
                 sdk: sdk,
-                contracts: Default::default(),
+                data_contract_cache: data_contract_cache,
                 request_settings: RequestSettings {
                     connect_timeout: None,
                     timeout: None,
@@ -475,9 +507,10 @@ pub fn create_dash_sdk(
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let cfg = Config::new();
+        let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
+            cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
         } else {
             // use Dash Core for quorum public keys
             cfg.setup_api().await
@@ -486,7 +519,7 @@ pub fn create_dash_sdk(
             config: cfg,
             runtime: rt.clone(),
             sdk: sdk,
-            contracts: Default::default(),
+            data_contract_cache: data_contract_cache,
             request_settings: RequestSettings {
                 connect_timeout: None,
                 timeout: None,
