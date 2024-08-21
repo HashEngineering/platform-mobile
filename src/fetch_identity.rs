@@ -294,7 +294,7 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
 
 #[test]
 fn fetch_identity_test() {
-    let result = fetch_identity_with_core(Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap());
+    let result = fetch_identity_with_core(Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap());
     match result {
         Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
         Err(err) => panic!("error fetching identity: {}", err)
@@ -306,7 +306,7 @@ fn fetch_identity_with_sdk_test() {
     let mut rust_sdk = create_sdk(0, 0);
     let result = fetch_identity_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
+        Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap()
     );
     match result {
         Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
@@ -319,7 +319,7 @@ fn fetch_identity_balance_with_sdk_test() {
     let mut rust_sdk = create_sdk(0, 0);
     let result = fetch_identity_balance_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
+        Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap()
     );
     match result {
         Ok(balance) => tracing::info!("success fetching identity: {:?}", balance),

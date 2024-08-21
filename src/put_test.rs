@@ -55,7 +55,7 @@ fn get_salted_domain_hash(
 #[test]
 fn test_put_documents_for_username() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -64,7 +64,7 @@ fn test_put_documents_for_username() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AyRfPtcKzjrFn5JFM/uqDEbXJ1R7iNA+w638sYGTjLkM", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -163,7 +163,7 @@ fn test_put_documents_for_username() {
             .document_type_for_name(&"preorder")
             .expect("expected a profile document type");
 
-        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
+        let hex_private_key = "619955b8bbebfcd6b64b723054554a4e480aa49870843542275bc7203301d1c4";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -257,7 +257,7 @@ fn test_put_documents_for_username() {
 #[test]
 fn test_put_txmetadata_contract() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -266,7 +266,7 @@ fn test_put_txmetadata_contract() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("A08KcWa87tykcGNj+GiJr5E2yzA236ybhnP3fnq/Qc+7", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AyRfPtcKzjrFn5JFM/uqDEbXJ1R7iNA+w638sYGTjLkM", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -289,7 +289,7 @@ fn test_put_txmetadata_contract() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let hex_private_key = "a8a3a090525c3eefd3d058992b20d8f735ada135c12312a816ed72c07e630299";
+        let hex_private_key = "619955b8bbebfcd6b64b723054554a4e480aa49870843542275bc7203301d1c4";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
