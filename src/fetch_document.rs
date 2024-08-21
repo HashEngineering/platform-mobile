@@ -399,8 +399,6 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
                                   limit: u32,
                                   start: Option<StartPoint>
 ) -> Result<Vec<Document>, String> {
-    setup_logs();
-
     let rt = (*rust_sdk).entry_point.get_runtime();
 
     // Execute the async block using the Tokio runtime
@@ -428,7 +426,10 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
             None => {
                 match (DataContract::fetch(&sdk, data_contract_id.clone())
                          .await) {
-                    Ok(Some(data_contract)) => Arc::new(data_contract),
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
                     Ok(None) => return Err("data contract not found".to_string()),
                     Err(e) => return Err(e.to_string())
                 }
@@ -483,6 +484,63 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
             }
             Err(e) => Err(e.to_string())
         }
+    })
+}
+
+// Contenders: 5
+// Abstain: 0
+// Lock: 0
+// Identifier: 2GW4QGjKj7zJVtL8SYaGZxuCYbkRCSAVAm9R9JDTtDaX
+// Serialized:AL58b+byMei1+Tsbf5maCTwfg28Jczy6Fg6LR4tB3DeSEtRBemB6s6voUDw0LXI5YYF9EzyMp0zHLYTs1XMMEKABAAcAAAGRYOWVHgAAAZFg5ZUeAAABkWDllR4ABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhARLUQXpgerOr6FA8NC1yOWGBfRM8jKdMxy2E7NVzDBCgAQA=
+// Votes: 0
+// Identifier: 2Phpq9yHi97dSookJery5xo2e3HARxGbqKaDDSSCFZki
+// Serialized:AHDmT7mDZwcKgFdSEp/7we2TDX7NX5Q9mgflQnpWEhE7FKygFLCHkgJMkAHXRSeZmNMNf+LmA16iBU196pS+UScBAAcAAAGRXZuz7QAAAZFdm7PtAAABkV2bs+0ABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhARSsoBSwh5ICTJAB10UnmZjTDX/i5gNeogVNfeqUvlEnAQA=
+// Votes: 0
+// Identifier: CrAJrjAyy7L1ShDyvKxHRJ1Cp2XfqdVHqFhfSZLi9QdY
+// Serialized:AJUAiE5IM4P/TPA4BQBSumSFvbUMmUIDJYpoTZyX4TF2sAiKULrGNc7AEM66uXW6D8oCihs3wZ2lzYxjuSNyFrMBAAcAAAGRYNznfwAAAZFg3Od/AAABkWDc538ABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAbAIilC6xjXOwBDOurl1ug/KAoobN8Gdpc2MY7kjchazAQA=
+// Votes: 0
+// Identifier: DRa5SomSnh8cENfu3gLWAd2UuNNQKuYEyHakHk7oKivm
+// Serialized:AOLKw44CYT2J/bjXSuyObfue6V4/kdvTBn8tb6m+7W2iuJeVGJgxeHXOiwg5e+Zzc7BPmIDjEVS3mb5DQLRGIiIBAAcAAAGRay/0NgAAAZFrL/Q2AAABkWsv9DYABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAbiXlRiYMXh1zosIOXvmc3OwT5iA4xFUt5m+Q0C0RiIiAQA=
+// Votes: 0
+// Identifier: EeHNsyw3MTJGquJxR45K8Wnt7BvTCLyuxGDAgxHdoGnA
+// Serialized:AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=
+// Votes: 0
+use dpp::version::LATEST_PLATFORM_VERSION;
+use dpp::data_contract::accessors::v0::DataContractV0Getters;
+use dpp::document::serialization_traits::DocumentPlatformConversionMethodsV0;
+#[ferment_macro::export]
+pub unsafe fn deserialize_document_sdk(
+    rust_sdk: *mut RustSdk,
+    bytes: Vec<u8>,
+    data_contract_id: Identifier,
+    document_type: String
+) -> Result<Document, String> {
+
+    let rt = (*rust_sdk).entry_point.get_runtime();
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let sdk = (*rust_sdk).entry_point.get_sdk();
+
+        tracing::warn!("using existing data contract id and fetching...");
+
+        let cfg = Config::new();
+        let sdk = cfg.setup_api().await;
+
+        let contract = match ((*rust_sdk).get_data_contract(&data_contract_id)) {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                match (DataContract::fetch(&sdk, data_contract_id.clone())
+                    .await) {
+                    Ok(Some(data_contract)) => Arc::new(data_contract),
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
+        };
+
+        Document::from_bytes(&bytes, contract.document_type_for_name(&document_type).unwrap(), LATEST_PLATFORM_VERSION)
+            .or_else(|e| Err(format!("deserialization failed: {}", e.to_string())))
     })
 }
 
