@@ -846,6 +846,59 @@ fn docs_startswith_query_sdk_test() {
     }
 }
 
+#[test]
+fn docs_domain_query_sort_test() {
+    let mut sdk = create_sdk(0, 0);
+    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let docs_result = unsafe {
+        fetch_documents_with_query_and_sdk(
+            &mut sdk,
+            contract_id,
+            "domain".to_string(),
+            vec![
+                WhereClause { field: "normalizedLabel".into(), value: Value::Text("tut".into()), operator: WhereOperator::StartsWith },
+                WhereClause { field: "normalizedParentDomainName".into(), value: Value::Text("dash".into()), operator: WhereOperator::Equal }
+            ],
+            vec![
+                OrderClause { field: "normalizedLabel".into(), ascending: true }
+            ],
+            100,
+            None
+        )
+    };
+
+    match docs_result {
+        Ok(docs) => {
+            tracing::info!("query results: {}", docs.len());
+            for document in docs {
+                match document {
+                    Document::V0(document_v0) => {
+                        // Use `document` here
+                        tracing::info!("{:?}", document_v0.properties().get("normalizedLabel")); // Assuming Document implements Debug
+                    }
+                }
+            }
+        }
+        Err(e) => panic!("{}", e)
+    }
+}
+
+#[test]
+fn doc_deserialization_sdk_test() {
+    let mut sdk = create_sdk(0, 0);
+
+    unsafe {
+        println!(
+            "{:?}", deserialize_document_sdk(
+                &mut sdk,
+                base64::decode("AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=").unwrap(),
+                Identifier::from_bytes(&DPNS_DATACONTRACT_ID).unwrap(),
+                "domain".into()
+            ).unwrap()
+        );
+    }
+}
+
 // #[test]
 // fn docs_full_query_sdk5_test() {
 //     let mut sdk = create_sdk5(0, 0);
