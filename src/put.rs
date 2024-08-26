@@ -23,7 +23,6 @@ use dpp::dashcore::consensus::Decodable;
 use dpp::dashcore::hash_types::CycleHash;
 use dpp::dashcore::hashes::sha256d;
 use dpp::data_contract::{DataContract};
-//use dpp::data_contract::v0::data_contract::DataContractV0;
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract::V0;
 use dpp::data_contract::document_type::DocumentType;
@@ -51,14 +50,14 @@ use serde::{Deserialize, Serialize};
 use tokio::runtime::Builder;
 use tracing::trace;
 use rand::random;
-use crate::config::Config;
+use crate::config::{Config, EntryPoint};
 use crate::logs::setup_logs;
 use crate::provider::Cache;
-use crate::config::RustSdk;
 use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
 use dapi_grpc::platform::v0::wait_for_state_transition_result_response::{Version, wait_for_state_transition_result_response_v0};
 use dash_sdk::platform::transition::top_up_identity::TopUpIdentity;
 use dpp::state_transition::StateTransition;
+use crate::sdk::DashSdk;
 
 //use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
 pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
@@ -443,23 +442,21 @@ pub fn put_identity(
 
 #[ferment_macro::export]
 pub fn put_identity_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     identity: Identity,
     asset_lock_proof: AssetLockProofFFI,
     asset_lock_proof_private_key: Vec<u8>,
     signer_callback: u64,
     is_testnet: bool
 ) -> Result<Identity, String> {
-    setup_logs();
-
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up network, private key and signer");
 
@@ -504,22 +501,20 @@ pub fn put_identity_sdk(
 
 #[ferment_macro::export]
 pub fn topup_identity_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     identity: Identity,
     asset_lock_proof: AssetLockProofFFI,
     asset_lock_proof_private_key: Vec<u8>,
     is_testnet: bool
 ) -> Result<u64, String> {
-    setup_logs();
-
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up network, private key and signer");
 
@@ -646,7 +641,7 @@ pub fn put_document(
 
 #[ferment_macro::export]
 pub fn put_document_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     document: Document,
     data_contract_id: Identifier,
     document_type_str: String,
@@ -656,14 +651,14 @@ pub fn put_document_sdk(
     signer_callback: u64
 ) -> Result<Document, String> {
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
 
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
@@ -743,7 +738,7 @@ pub fn put_document_sdk(
 
 #[ferment_macro::export]
 pub fn replace_document_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     document: Document,
     data_contract_id: Identifier,
     document_type_str: String,
@@ -754,9 +749,7 @@ pub fn replace_document_sdk(
     quorum_key_callback: u64,
     d: u64
 ) -> Result<Document, String> {
-
-    setup_logs();
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
 
     // Execute the async block using the Tokio runtime
@@ -764,7 +757,7 @@ pub fn replace_document_sdk(
         // Your async code here
         let cfg = Config::new();
         trace!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 

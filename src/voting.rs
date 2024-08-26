@@ -31,25 +31,24 @@ use platform_value::string_encoding::Encoding;
 use platform_version::version::PlatformVersion;
 use simple_signer::signer::SimpleSigner;
 use tracing::trace;
-use crate::config::{Config, create_sdk, DPNS_DATACONTRACT_ID, RustSdk};
+use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
 use crate::fetch_document::fetch_documents_with_query_and_sdk;
 use crate::put::{CallbackSigner, wait_for_response_concurrent};
+use crate::sdk::{create_dash_sdk, DashSdk};
 
 #[ferment_macro::export]
 pub fn put_vote_to_platform(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     vote: Vote,
     voter_pro_tx_hash: Identifier,
     voting_public_key: IdentityPublicKey,
     signer_callback: u64
 ) -> Result<Vote, String> {
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
-
-    // Execute the async block using the Tokio runtime
+    let rt = unsafe { (*rust_sdk).get_runtime() };
     rt.block_on(async {
 
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         let signer = CallbackSigner::new(signer_callback).expect("signer");
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
 
@@ -136,18 +135,18 @@ pub fn put_vote_to_platform(
 // }
 #[ferment_macro::export]
 pub fn get_vote_contenders(
-    rust_sdk: * mut RustSdk,
+    rust_sdk: * mut DashSdk,
     index_name: String,
     index_values: Vec<Value>,
     document_type_name: String,
     contract_id: Identifier
 ) -> Result<Contenders, String>{
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
 
 
         let query = ContestedDocumentVotePollDriveQuery {
@@ -173,16 +172,16 @@ pub fn get_vote_contenders(
 }
 #[ferment_macro::export]
 pub fn get_contested_resources(
-    rust_sdk: * mut RustSdk,
+    rust_sdk: * mut DashSdk,
     document_type_name: String,
     data_contract_id: Identifier
 ) -> Result<ContestedResources, String>{
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
 
         tracing::info!("get_contested_resources: starting...");
         tracing::info!("  sdk: {:?}", sdk);
@@ -205,6 +204,8 @@ pub fn get_contested_resources(
             }
         };
 
+        tracing::info!("get_contested_resources: found data contract");
+
         let document_type_result = data_contract
             .document_type_for_name(&document_type_name);
 
@@ -225,6 +226,7 @@ pub fn get_contested_resources(
                 order_ascending: true,
             };
 
+            tracing::info!("get_contested_resources: query ContestedResources for {:?}", query);
             let contested_resources = ContestedResource::fetch_many(&sdk, query).await;
 
             match contested_resources {
@@ -239,8 +241,8 @@ pub fn get_contested_resources(
 
 #[test]
 fn get_contested_resources_test() {
-    let mut sdk = create_sdk(0, 0);
-    tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+    let mut sdk = create_dash_sdk(0, 0);
+    tracing::warn!("sdk: {:?}", sdk.get_sdk());
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let resources_result = get_contested_resources(
             &mut sdk,
@@ -255,8 +257,8 @@ fn get_contested_resources_test() {
 
 #[test]
 fn get_vote_contenders_test() {
-    let mut sdk = create_sdk(0, 0);
-    tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+    let mut sdk = create_dash_sdk(0, 0);
+    tracing::warn!("sdk: {:?}", sdk.get_sdk());
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let resources_result = get_vote_contenders(
         &mut sdk,
@@ -273,16 +275,16 @@ fn get_vote_contenders_test() {
 
 #[ferment_macro::export]
 pub fn get_votes(
-    rust_sdk: * mut RustSdk,
+    rust_sdk: * mut DashSdk,
     data_contract_id: Identifier
 ) -> Result<Option<Vote>, String>{
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+    let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-        let settings = unsafe { (*rust_sdk).entry_point.get_request_settings() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
 
         let query = ContestedResourceVotesGivenByIdentityQuery {
             identity_id: data_contract_id, //Identifier::from_string("", Encoding::Base58).unwrap(),
@@ -301,8 +303,8 @@ pub fn get_votes(
 
 #[test]
 fn get_votes_test() {
-    let mut sdk = create_sdk(0, 0);
-    tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+    let mut sdk = create_dash_sdk(0, 0);
+    tracing::warn!("sdk: {:?}", sdk.get_sdk());
     let contract_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap();
     let resources_result = get_votes(
         &mut sdk,
@@ -323,12 +325,12 @@ fn get_votes_test() {
 //     end_time_included: bool
 // ) -> Result<VotePollsGroupedByTimestamp, String>{
 //
-//     let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+//     let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
 //
 //     // Execute the async block using the Tokio runtime
 //     rt.block_on(async {
-//         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-//         let settings = unsafe { (*rust_sdk).entry_point.get_request_settings() };
+//         let sdk = unsafe { (*rust_sdk).get_sdk() };
+//         let settings = unsafe { (*rust_sdk).get_request_settings() };
 //
 //         let query = VotePollsByEndDateDriveQuery {
 //             start_time: Some((start_time, start_time_included)),
@@ -348,7 +350,7 @@ fn get_votes_test() {
 // #[test]
 // fn get_votepolls_test() {
 //     let mut sdk = create_sdk(0, 0);
-//     tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+//     tracing::warn!("sdk: {:?}", sdk.get_sdk());
 //
 //     let start = SystemTime::now();
 //     let since_the_epoch = start.duration_since(UNIX_EPOCH)
@@ -375,12 +377,12 @@ fn get_votes_test() {
 //     identity: Identifier
 // ) -> Result<ResourceVotesByIdentity, String>{
 //
-//     let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+//     let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
 //
 //     // Execute the async block using the Tokio runtime
 //     rt.block_on(async {
-//         let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
-//         let settings = unsafe { (*rust_sdk).entry_point.get_request_settings() };
+//         let sdk = unsafe { (*rust_sdk).get_sdk() };
+//         let settings = unsafe { (*rust_sdk).get_request_settings() };
 //
 //         let query = VoteQuery {
 //

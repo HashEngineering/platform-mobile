@@ -31,12 +31,11 @@ use rand::random;
 use simple_signer::signer::SimpleSigner;
 use tokio::runtime::Builder;
 use tracing::trace;
-use crate::config::Config;
+use crate::config::{Config, EntryPoint};
 use crate::logs::setup_logs;
 use crate::put::{get_wait_result_error, wait_for_response_concurrent};
 use dash_sdk::Error;
-use crate::config::RustSdk;
-use crate::config::create_sdk;
+use crate::sdk::create_dash_sdk;
 
 fn get_salted_domain_hash(
     pre_order_salt_raw: &[u8],
@@ -55,7 +54,7 @@ fn get_salted_domain_hash(
 #[test]
 fn test_put_documents_for_username() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("7Yowk46VwwHqmD5yZyyygggh937aP6h2UW7aQWBdWpM5", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -64,7 +63,7 @@ fn test_put_documents_for_username() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("AyRfPtcKzjrFn5JFM/uqDEbXJ1R7iNA+w638sYGTjLkM", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AmM7AZIyWC1uOj0/3lFManLaTAK3RVToY+1yMvbpkvDa", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -141,9 +140,8 @@ fn test_put_documents_for_username() {
         }
     );
 
-    setup_logs();
-    let rust_sdk = create_sdk(0, 0);
-    let rt = unsafe { rust_sdk.entry_point.get_runtime() };
+    let rust_sdk = create_dash_sdk(0, 0);
+    let rt = unsafe { rust_sdk.get_runtime() };
 
 
     // Execute the async block using the Tokio runtime
@@ -151,7 +149,7 @@ fn test_put_documents_for_username() {
         // Your async code here
         let cfg = Config::new();
         tracing::warn!("Setting up SDK");
-        let sdk = rust_sdk.entry_point.get_sdk();
+        let sdk = rust_sdk.get_sdk();
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
@@ -163,7 +161,7 @@ fn test_put_documents_for_username() {
             .document_type_for_name(&"preorder")
             .expect("expected a profile document type");
 
-        let hex_private_key = "619955b8bbebfcd6b64b723054554a4e480aa49870843542275bc7203301d1c4";
+        let hex_private_key = "a7285a6108fcd2a7b64060cbec68dddaf70c2d0514d8e0a447c8c933aef11b81";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));
@@ -257,7 +255,7 @@ fn test_put_documents_for_username() {
 #[test]
 fn test_put_txmetadata_contract() {
     let entropy_generator = DefaultEntropyGenerator;
-    let owner_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).expect("identifier");
+    let owner_id = Identifier::from_string("7Yowk46VwwHqmD5yZyyygggh937aP6h2UW7aQWBdWpM5", Encoding::Base58).expect("identifier");
     let identity_public_key = IdentityPublicKey::V0(
         IdentityPublicKeyV0 {
             id: 1,
@@ -266,7 +264,7 @@ fn test_put_txmetadata_contract() {
             contract_bounds: None,
             key_type: KeyType::ECDSA_SECP256K1,
             read_only: false,
-            data: BinaryData::from_string("AyRfPtcKzjrFn5JFM/uqDEbXJ1R7iNA+w638sYGTjLkM", Encoding::Base64).unwrap(),
+            data: BinaryData::from_string("AmM7AZIyWC1uOj0/3lFManLaTAK3RVToY+1yMvbpkvDa", Encoding::Base64).unwrap(),
             disabled_at: None,
         }
     );
@@ -289,7 +287,7 @@ fn test_put_txmetadata_contract() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let hex_private_key = "619955b8bbebfcd6b64b723054554a4e480aa49870843542275bc7203301d1c4";
+        let hex_private_key = "a7285a6108fcd2a7b64060cbec68dddaf70c2d0514d8e0a447c8c933aef11b81";
         let private_key = hex::decode(hex_private_key).expect("Decoding failed");
         let mut signer = SimpleSigner::default();
         signer.add_key(identity_public_key.clone(), Vec::from(private_key.as_slice()));

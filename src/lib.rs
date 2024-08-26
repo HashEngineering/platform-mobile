@@ -12,6 +12,8 @@ mod put_test;
 pub mod core;
 mod logs;
 pub mod voting;
+pub mod sdk;
+
 extern crate ferment_macro;
 
 use drive_proof_verifier::ContextProvider;

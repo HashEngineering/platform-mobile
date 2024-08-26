@@ -17,9 +17,11 @@ use dash_sdk::mock::provider::GrpcContextProvider;
 use dash_sdk::{RequestSettings, Sdk};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use ferment_interfaces::{boxed, unbox_any};
+use http::Uri;
 use tokio::runtime::{Builder, Runtime};
 use crate::logs::setup_logs;
 use crate::provider::{Cache, CallbackContextProvider};
+use crate::sdk::DashSdk;
 
 /// Existing document ID
 ///
@@ -37,10 +39,10 @@ pub const DPNS_DATACONTRACT_ID: [u8; 32] = [
 
 pub const DPNS_DATACONTRACT_OWNER_ID: [u8; 32] = [0; 32];
 
-pub const ADDRESS_LIST: [&str; 28] = [
+pub const ADDRESS_LIST: [&str; 32] = [
     "34.214.48.68",
-    "35.166.18.166",
-    // "35.165.50.126",
+    // "35.166.18.166",
+    "35.165.50.126",
     "52.42.202.128",
     "52.12.176.90",
     "44.233.44.95",
@@ -48,22 +50,22 @@ pub const ADDRESS_LIST: [&str; 28] = [
     "52.34.144.50",
     "44.240.98.102",
     "54.201.32.131",
-    // "52.10.229.11",
+    "52.10.229.11",
     "52.13.132.146",
     "44.228.242.181",
     "35.82.197.197",
     "52.40.219.41",
-    // "44.239.39.153",
+    "44.239.39.153",
     "54.149.33.167",
     "35.164.23.245",
     "52.33.28.47",
-    // "52.43.86.231",
+    "52.43.86.231",
     "52.43.13.92",
     "35.163.144.230",
     "52.89.154.48",
     "52.24.124.162",
     "44.227.137.77",
-    // "35.85.21.179",
+    "35.85.21.179",
     "54.187.14.232",
     "54.68.235.201",
     "52.13.250.182",
@@ -132,78 +134,49 @@ pub struct Config {
     pub existing_document_id: Identifier,
 }
 
-#[ferment_macro::opaque]
-pub trait EntryPoint2 {
-
-}
+// #[ferment_macro::opaque]
+// pub trait EntryPoint2 {
+//
+// }
 //#[ferment_macro::opaque]
 pub trait EntryPoint {
     fn get_runtime(&self) -> Arc<Runtime>;
     fn get_sdk(&self) -> Arc<Sdk>;
     fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>>;
-    fn set_data_contract(&mut self, data_contract: &DataContract);
+    fn add_data_contract(&mut self, data_contract: &DataContract);
     fn get_request_settings(&self) -> RequestSettings;
 }
 
-//#[ferment_macro::opaque]
-pub struct DashSdk {
-    pub config: Config,
-    pub runtime: Arc<Runtime>,
-    pub sdk: Arc<Sdk>,
-    pub data_contract_cache: Arc<Cache<Identifier, DataContract>>,
-    pub request_settings: RequestSettings
-}
 
-impl EntryPoint for DashSdk {
-    fn get_runtime(&self) -> Arc<Runtime> {
-        self.runtime.clone()
-    }
-    fn get_sdk(&self) -> Arc<Sdk> {
-        self.sdk.clone()
-    }
 
-    fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
-        match self.data_contract_cache.get(identifier) {
-            Some(T) => Some(T.clone()),
-            None => None
-        }
-    }
 
-    fn set_data_contract(&mut self, data_contract: &DataContract) {
-        self.data_contract_cache.put(data_contract.id(), data_contract.clone());
-    }
-
-    fn get_request_settings(&self) -> RequestSettings {
-        self.request_settings
-    }
-}
 
 // should this be exported as Arc<> by the functions?
-#[ferment_macro::opaque]
-pub struct RustSdk {
-    pub entry_point: Box<dyn EntryPoint>
-}
-
-impl RustSdk {
-    fn get_runtime(self) -> Arc<Runtime> {
-        self.entry_point.get_runtime()
-    }
-    fn get_sdk(self) -> Arc<Sdk> {
-        self.entry_point.get_sdk()
-    }
-
-    pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
-        self.entry_point.get_data_contract(identifier)
-    }
-
-    pub fn add_data_contract(&mut self, data_contract: &DataContract) {
-        self.entry_point.set_data_contract(data_contract)
-    }
-
-    pub fn get_request_settings(&self) -> RequestSettings {
-        self.entry_point.get_request_settings()
-    }
-}
+// #[ferment_macro::opaque]
+// pub struct RustSdk {
+//     pub entry_point: Box<dyn EntryPoint>
+// }
+//
+// impl RustSdk {
+//     fn get_runtime(self) -> Arc<Runtime> {
+//         self.entry_point.get_runtime()
+//     }
+//     fn get_sdk(self) -> Arc<Sdk> {
+//         self.entry_point.get_sdk()
+//     }
+//
+//     pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
+//         self.entry_point.get_data_contract(identifier)
+//     }
+//
+//     pub fn add_data_contract(&mut self, data_contract: &DataContract) {
+//         self.entry_point.set_data_contract(data_contract)
+//     }
+//
+//     pub fn get_request_settings(&self) -> RequestSettings {
+//         self.entry_point.get_request_settings()
+//     }
+// }
 
 // #[ferment_macro::opaque]
 // pub struct RustSdk2 {
@@ -223,10 +196,10 @@ impl RustSdk {
 // }
 
 //#[ferment_macro::opaque]
-pub struct DashSharedCoreWithRuntime {
-    pub sdk: *mut Sdk,
-    pub runtime: *mut Runtime,
-}
+// pub struct DashSharedCoreWithRuntime {
+//     pub sdk: *mut Sdk,
+//     pub runtime: *mut Runtime,
+// }
 
 //#[ferment_macro::export]
 // impl DashSharedCoreWithRuntime {
@@ -261,10 +234,6 @@ pub struct DashSharedCoreWithRuntime {
 //     }
 // }
 
-// #[ferment_macro::opaque]
-// pub struct RustSdk5 {
-//     pub entry_point: * mut c_void
-// }
 
 impl Config {
     /// Prefix of configuration options in the environment variables and `.env` file.
@@ -349,6 +318,16 @@ impl Config {
         uris.map(AddressList::from_iter).expect("valid address list")
     }
 
+    pub fn new_address_list(&self, address_list: Vec<String>) -> AddressList {
+        let scheme = if self.platform_ssl { "https" } else { "http" };
+        let uris: Vec<Uri> = address_list.into_iter().map(|host| {
+            let uri = format!("{}://{}:{}", scheme, host, self.platform_port);
+            Uri::from_str(&uri).expect("valid address list")
+        }).collect();
+
+        AddressList::from_iter(uris)
+    }
+
     /// Create new SDK instance
     ///
     /// Depending on the feature flags, it will connect to the configured platform node or mock API.
@@ -359,10 +338,8 @@ impl Config {
     /// new test vectors during execution
     /// * `offline-testing` is set - use mock implementation and
     /// load existing test vectors from disk
-    pub async fn setup_api(&self) -> Arc<dash_sdk::Sdk> {
-        // offline testing takes precedence over network testing
-        //#[cfg(all(feature = "network-testing", not(feature = "offline-testing")))]
-            let sdk = {
+    pub async fn setup_api(&self) -> Arc<Sdk> {
+        let sdk = {
             // Dump all traffic to disk
             let builder = dash_sdk::SdkBuilder::new(self.address_list()).with_core(
                 &self.core_ip,
@@ -377,7 +354,23 @@ impl Config {
         sdk.into()
     }
 
-    pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<dash_sdk::Sdk> {
+    pub async fn setup_api_list(&self, address_list: Vec<String>) -> Arc<Sdk> {
+        let sdk = {
+            // Dump all traffic to disk
+            let builder = dash_sdk::SdkBuilder::new(self.new_address_list(address_list)).with_core(
+                &self.core_ip,
+                self.core_port,
+                &self.core_user,
+                &self.core_password,
+            );
+
+            builder.build().expect("cannot initialize api")
+        };
+
+        sdk.into()
+    }
+
+    pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
             q,
             d,
@@ -396,7 +389,12 @@ impl Config {
         sdk.into()
     }
 
-    pub async fn setup_api_with_callbacks_cache(&self, q: u64, d: u64, data_contract_cache: Arc<Cache<Identifier, DataContract>>) -> Arc<dash_sdk::Sdk> {
+    pub async fn setup_api_with_callbacks_cache(
+        &self,
+        q: u64,
+        d: u64,
+        data_contract_cache: Arc<Cache<Identifier, DataContract>>,
+    ) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
             q,
             d,
@@ -407,6 +405,31 @@ impl Config {
         let mut sdk = {
             // Dump all traffic to disk
             let builder = dash_sdk::SdkBuilder::new(self.address_list());
+            builder.build().expect("cannot initialize api")
+        };
+        // not ideal because context provider has a clone of the sdk
+        context_provider.set_sdk(Some(Arc::new(sdk.clone())));
+        sdk.set_context_provider(context_provider);
+        sdk.into()
+    }
+
+    pub async fn setup_api_with_callbacks_cache_list(
+        &self,
+        q: u64,
+        d: u64,
+        data_contract_cache: Arc<Cache<Identifier, DataContract>>,
+        address_list: Vec<String>
+    ) -> Arc<Sdk> {
+        let mut context_provider = CallbackContextProvider::new(
+            q,
+            d,
+            None,
+            data_contract_cache,
+            NonZeroUsize::new(100).expect("Non Zero")
+        ).expect("context provider");
+        let mut sdk = {
+            // Dump all traffic to disk
+            let builder = dash_sdk::SdkBuilder::new(self.new_address_list(address_list));
             builder.build().expect("cannot initialize api")
         };
         // not ideal because context provider has a clone of the sdk
@@ -443,96 +466,56 @@ impl Config {
 //     return DashSharedCore::new(std::ptr::null())
 // }
 
-#[ferment_macro::export]
-pub fn create_sdk(
-    quorum_public_key_callback: u64,
-    data_contract_callback: u64
-) -> RustSdk {
-    setup_logs();
-    let rt = Arc::new(
-        Builder::new_multi_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime")
-    );
+// #[ferment_macro::export]
+// pub fn create_sdk(
+//     quorum_public_key_callback: u64,
+//     data_contract_callback: u64
+// ) -> RustSdk {
+//     setup_logs();
+//     let rt = Arc::new(
+//         Builder::new_multi_thread()
+//         .enable_all() // Enables all I/O and time drivers
+//         .build()
+//         .expect("Failed to create a runtime")
+//     );
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//         let cfg = Config::new();
+//         tracing::info!("cfg created");
+//         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
+//         let sdk = if quorum_public_key_callback != 0 {
+//             // use the callbacks to obtain quorum public keys
+//             cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
+//         } else {
+//             // use Dash Core for quorum public keys
+//             cfg.setup_api().await
+//         };
+//         tracing::info!("sdk created");
+//         RustSdk {
+//             entry_point: Box::new(DashSdk {
+//                 config: Arc::new(cfg),
+//                 runtime: rt.clone(),
+//                 sdk: sdk,
+//                 data_contract_cache: data_contract_cache,
+//                 request_settings: RequestSettings {
+//                     connect_timeout: None,
+//                     timeout: None,
+//                     retries: Some(5),
+//                     ban_failed_address: Some(true),
+//                 }
+//             }
+//             )
+//         }
+//     })
+// }
+//
+//
+//
+// pub fn destroy_sdk(rust_sdk: * mut RustSdk) {
+//     unsafe  { unbox_any(rust_sdk) };
+// }
 
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        let cfg = Config::new();
-        tracing::info!("cfg created");
-        let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
-        let sdk = if quorum_public_key_callback != 0 {
-            // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
-        } else {
-            // use Dash Core for quorum public keys
-            cfg.setup_api().await
-        };
-        tracing::info!("sdk created");
-        RustSdk {
-            entry_point: Box::new(DashSdk {
-                config: cfg,
-                runtime: rt.clone(),
-                sdk: sdk,
-                data_contract_cache: data_contract_cache,
-                request_settings: RequestSettings {
-                    connect_timeout: None,
-                    timeout: None,
-                    retries: Some(5),
-                    ban_failed_address: Some(true),
-                }
-            }
-            )
-        }
-    })
-}
-
-pub fn destroy_sdk(rust_sdk: * mut RustSdk) {
-    unsafe  { unbox_any(rust_sdk) };
-}
-
-#[ferment_macro::export]
-pub fn create_dash_sdk(
-    quorum_public_key_callback: u64,
-    data_contract_callback: u64
-) -> DashSdk {
-    setup_logs();
-    let rt = Arc::new(
-        Builder::new_multi_thread()
-            .enable_all() // Enables all I/O and time drivers
-            .build()
-            .expect("Failed to create a runtime")
-    );
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        let cfg = Config::new();
-        let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
-        let sdk = if quorum_public_key_callback != 0 {
-            // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
-        } else {
-            // use Dash Core for quorum public keys
-            cfg.setup_api().await
-        };
-        DashSdk {
-            config: cfg,
-            runtime: rt.clone(),
-            sdk: sdk,
-            data_contract_cache: data_contract_cache,
-            request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: Some(5),
-                ban_failed_address: Some(true),
-            }
-        }
-    })
-}
-
-pub fn destroy_dash_sdk(rust_sdk: * mut DashSdk) {
-    unsafe  { unbox_any(rust_sdk) };
-}
 
 // #[ferment_macro::export]
 // pub fn create_sdk2(
@@ -701,17 +684,11 @@ pub fn destroy_dash_sdk(rust_sdk: * mut DashSdk) {
 
 
 
-#[test]
-fn test_rust_sdk() {
-    let my_sdk = create_sdk(0, 0);
-    let my_boxed_sdk = boxed(my_sdk);
-    destroy_sdk(my_boxed_sdk);
-}
+// #[test]
+// fn test_rust_sdk() {
+//     let my_sdk = create_sdk(0, 0);
+//     let my_boxed_sdk = boxed(my_sdk);
+//     destroy_sdk(my_boxed_sdk);
+// }
 
 
-#[test]
-fn test_dash_sdk() {
-    let my_sdk = create_dash_sdk(0, 0);
-    let my_boxed_sdk = boxed(my_sdk);
-    destroy_dash_sdk(my_boxed_sdk);
-}

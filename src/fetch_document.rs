@@ -10,9 +10,11 @@ use dpp::document::{Document, DocumentV0Getters};
 use drive::query::{ordering::OrderClause, conditions::WhereClause, conditions::WhereOperator};
 use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
 use tokio::runtime::{Builder, Runtime};
-use crate::config::{Config, DPNS_DATACONTRACT_ID, DashSdk, RustSdk, create_sdk, EntryPoint};
+use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
 use crate::logs::setup_logs;
-
+use crate::sdk::{create_dash_sdk, create_dash_sdk_using_single_evonode};
+use crate::sdk::DashSdk;
+use rs_dapi_client::DapiClientError;
 #[ferment_macro::export]
 pub fn get_document()-> Document {
     document_read()
@@ -391,7 +393,7 @@ pub fn fetch_documents_with_query(contract_id: Identifier,
 
 #[ferment_macro::export]
 pub unsafe fn fetch_documents_with_query_and_sdk(
-                                  rust_sdk: *mut RustSdk,
+                                  rust_sdk: *mut DashSdk,
                                   contract_id: Identifier,
                                   document_type: String,
                                   where_clauses: Vec<WhereClause>,
@@ -399,32 +401,20 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
                                   limit: u32,
                                   start: Option<StartPoint>
 ) -> Result<Vec<Document>, String> {
-    let rt = (*rust_sdk).entry_point.get_runtime();
+    let rt = (*rust_sdk).get_runtime();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = (*rust_sdk).entry_point.get_sdk();
+        let sdk = (*rust_sdk).get_sdk();
 
         let data_contract_id = contract_id;
         tracing::warn!("using existing data contract id and fetching...");
-        // let contract = Arc::new(
-        //     DataContract::fetch(&sdk, data_contract_id.clone())
-        //         .await
-        //         .expect("fetch data contract")
-        //         .expect("data contract not found"),
-        // );
-
-        // let contract_fetch_result = match(sdk.context_provider()) {
-        //     Some(context_provider) => {
-        //         context_provider.get_data_contract(&contract_id)
-        //     },
-        //     None => return Err("data contract not found".to_string())
-        // };
 
         let contract = match ((*rust_sdk).get_data_contract(&contract_id)) {
             Some(data_contract) => data_contract.clone(),
             None => {
-                match (DataContract::fetch(&sdk, data_contract_id.clone())
+                let request_settings = (*rust_sdk).get_request_settings();
+                match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
                          .await) {
                     Ok(Some(data_contract)) => {
                         unsafe { (*rust_sdk).add_data_contract(&data_contract); };
@@ -467,7 +457,105 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
             Some(s) => Some(s.into()),
             None => None
         };
-        let settings = unsafe { (*rust_sdk).entry_point.get_request_settings() };
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+        tracing::warn!("fetching many... query created");
+        let docs = Document::fetch_many_with_settings(&sdk, all_docs_query, settings)
+            .await;
+        match docs {
+            Ok(docs) => {
+                tracing::warn!("convert to Vec");
+                let into_vec = |map: BTreeMap<Identifier, Option<Document>>| {
+                    map.into_iter()
+                        .filter_map(|(_key, value)| value)
+                        .collect::<Vec<Document>>()
+                };
+
+                Ok(into_vec(docs))
+            }
+            Err(e) => Err(e.to_string())
+        }
+    })
+}
+
+#[ferment_macro::export]
+pub unsafe fn fetch_documents_with_query_and_sdk2(
+    rust_sdk: *mut DashSdk,
+    contract_id: Identifier,
+    document_type: String,
+    where_clauses: Vec<WhereClause>,
+    order_clauses: Vec<OrderClause>,
+    limit: u32,
+    start: Option<StartPoint>
+) -> Result<Vec<Document>, String> {
+    let rt = (*rust_sdk).get_runtime();
+
+    // Execute the async block using the Tokio runtime
+    rt.block_on(async {
+        let sdk = (*rust_sdk).get_sdk();
+
+        let data_contract_id = contract_id;
+        tracing::warn!("using existing data contract id and fetching...");
+        // let contract = Arc::new(
+        //     DataContract::fetch(&sdk, data_contract_id.clone())
+        //         .await
+        //         .expect("fetch data contract")
+        //         .expect("data contract not found"),
+        // );
+
+        // let contract_fetch_result = match(sdk.context_provider()) {
+        //     Some(context_provider) => {
+        //         context_provider.get_data_contract(&contract_id)
+        //     },
+        //     None => return Err("data contract not found".to_string())
+        // };
+
+        let contract = match ((*rust_sdk).get_data_contract(&contract_id)) {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                match (DataContract::fetch(&sdk, data_contract_id.clone())
+                    .await) {
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
+        };
+
+        // let contract_fetch_result =
+        //     DataContract::fetch(&sdk, data_contract_id.clone())
+        //         .await;
+        tracing::warn!("contract_fetch_result: {:?}", contract);
+        // let contract_result = match contract_fetch_result {
+        //     Ok(contract) => contract,
+        //     Err(e) => return Err(e.to_string())
+        // };
+        //tracing::warn!("contract_result: {:?}", contract_result);
+
+        // let contract = match contract_result {
+        //     Some(c) => c,
+        //     None => return Err("contract not found".to_string())
+        // };
+
+        tracing::warn!("fetching many...");
+        // Fetch multiple documents so that we get document ID
+        let mut all_docs_query =
+            DocumentQuery::new(Arc::clone(&contract), &document_type)
+                .expect("create SdkDocumentQuery");
+        for wc in where_clauses {
+            all_docs_query = all_docs_query.with_where(wc);
+        }
+        for oc in order_clauses {
+            all_docs_query = all_docs_query.with_order_by(oc);
+        }
+        all_docs_query.limit = limit;
+        all_docs_query.start = match start {
+            Some(s) => Some(s.into()),
+            None => None
+        };
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
         tracing::warn!("fetching many... query created");
         let docs = Document::fetch_many_with_settings(&sdk, all_docs_query, settings)
             .await;
@@ -510,17 +598,17 @@ use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::document::serialization_traits::DocumentPlatformConversionMethodsV0;
 #[ferment_macro::export]
 pub unsafe fn deserialize_document_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     bytes: Vec<u8>,
     data_contract_id: Identifier,
     document_type: String
 ) -> Result<Document, String> {
 
-    let rt = (*rust_sdk).entry_point.get_runtime();
+    let rt = (*rust_sdk).get_runtime();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = (*rust_sdk).entry_point.get_sdk();
+        let sdk = (*rust_sdk).get_sdk();
 
         tracing::warn!("using existing data contract id and fetching...");
 
@@ -543,6 +631,42 @@ pub unsafe fn deserialize_document_sdk(
             .or_else(|e| Err(format!("deserialization failed: {}", e.to_string())))
     })
 }
+
+// #[ferment_macro::export]
+// pub unsafe fn deserialize_document_sdk2(
+//     rust_sdk: *mut DashSdk,
+//     bytes: Vec<u8>,
+//     data_contract_id: Identifier,
+//     document_type: String
+// ) -> Result<Document, String> {
+//
+//     let rt = (*rust_sdk).get_runtime();
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//         let sdk = (*rust_sdk).get_sdk();
+//
+//         tracing::warn!("using existing data contract id and fetching...");
+//
+//         let cfg = Config::new();
+//         let sdk = cfg.setup_api().await;
+//
+//         let contract = match ((*rust_sdk).get_data_contract(&data_contract_id)) {
+//             Some(data_contract) => data_contract.clone(),
+//             None => {
+//                 match (DataContract::fetch(&sdk, data_contract_id.clone())
+//                     .await) {
+//                     Ok(Some(data_contract)) => Arc::new(data_contract),
+//                     Ok(None) => return Err("data contract not found".to_string()),
+//                     Err(e) => return Err(e.to_string())
+//                 }
+//             }
+//         };
+//
+//         Document::from_bytes(&bytes, contract.document_type_for_name(&document_type).unwrap(), LATEST_PLATFORM_VERSION)
+//             .or_else(|e| Err(format!("deserialization failed: {}", e.to_string())))
+//     })
+// }
 
 // #[ferment_macro::export]
 // pub unsafe fn fetch_documents_with_query_and_sdk5(
@@ -784,6 +908,46 @@ fn documents_with_callbacks_tree(contract_id: Identifier,
     })
 }
 
+// #[ferment_macro::export]
+// pub fn deserialize_document(bytes: Vec<u8>) -> Result<Document, String> {
+//
+//
+//
+//     let rt = Builder::new_current_thread()
+//         .enable_all() // Enables all I/O and time drivers
+//         .build()
+//         .expect("Failed to create a runtime");
+//
+//     // Execute the async block using the Tokio runtime
+//     rt.block_on(async {
+//
+//         let cfg = Config::new();
+//         let sdk = cfg.setup_api().await;
+//         let data_contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+//
+//         let contract =
+//             DataContract::fetch(&sdk, data_contract_id)
+//                 .await
+//                 .expect("fetch data contract")
+//                 .expect("data contract not found");
+//
+//         Document::from_bytes(&bytes, contract.document_type_for_name("domain".into()).unwrap(), LATEST_PLATFORM_VERSION)
+//             .or_else(|e| Err(format!("deserialization failed: {}", e.to_string())))
+//     })
+// }
+//
+//
+//
+//
+// #[test]
+// fn doc_deserialization_test() {
+//     println!(
+//         "{:?}", deserialize_document(
+//             base64::decode("AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=").unwrap()
+//         ).unwrap()
+//     );
+// }
+
 #[test]
 fn docs_test() {
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
@@ -845,7 +1009,7 @@ fn docs_full_query_test() {
 
 #[test]
 fn docs_full_query_sdk_test() {
-    let mut sdk = create_sdk(0, 0);
+    let mut sdk = create_dash_sdk(0, 0);
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
@@ -872,8 +1036,69 @@ fn docs_full_query_sdk_test() {
 }
 
 #[test]
+fn docs_full_query_sdk2_test() {
+    let mut sdk = create_dash_sdk(0, 0);
+    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let docs_result = unsafe {
+        fetch_documents_with_query_and_sdk2(
+            &mut sdk,
+            contract_id,
+            "domain".to_string(),
+            vec![],
+            vec![],
+            100,
+            None
+        )
+    };
+
+    match docs_result {
+        Ok(docs) => {
+            tracing::info!("query results");
+            for document in docs {
+                // Use `document` here
+                tracing::info!("{:?}", document); // Assuming Document implements Debug
+            }
+        }
+        Err(e) => panic!("{}", e)
+    }
+}
+
+#[test]
 fn docs_startswith_query_sdk_test() {
-    let mut sdk = create_sdk(0, 0);
+    let mut sdk = create_dash_sdk(0, 0);
+    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let docs_result = unsafe {
+        fetch_documents_with_query_and_sdk(
+            &mut sdk,
+            contract_id,
+            "domain".to_string(),
+            vec![
+                WhereClause { field: "normalizedLabel".into(), value: Value::Text("b0b1ee".into()), operator: WhereOperator::StartsWith },
+                WhereClause { field: "normalizedParentDomainName".into(), value: Value::Text("dash".into()), operator: WhereOperator::Equal }
+            ],
+            vec![
+                OrderClause { field: "normalizedLabel".into(), ascending: true }
+            ],
+            100,
+            None
+        )
+    };
+
+    match docs_result {
+        Ok(docs) => {
+            tracing::info!("query results: {}", docs.len());
+            for document in docs {
+                // Use `document` here
+                tracing::info!("{:?}", document); // Assuming Document implements Debug
+            }
+        }
+        Err(e) => panic!("{}", e)
+    }
+}
+
+#[test]
+fn docs_startswith_query_sdk_using_single_node_test() {
+    let mut sdk = create_dash_sdk_using_single_evonode("35.163.144.230".into(),0, 0);
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
@@ -906,7 +1131,7 @@ fn docs_startswith_query_sdk_test() {
 
 #[test]
 fn docs_domain_query_sort_test() {
-    let mut sdk = create_sdk(0, 0);
+    let mut sdk = create_dash_sdk(0, 0);
     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
@@ -943,7 +1168,7 @@ fn docs_domain_query_sort_test() {
 
 #[test]
 fn doc_deserialization_sdk_test() {
-    let mut sdk = create_sdk(0, 0);
+    let mut sdk = create_dash_sdk(0, 0);
 
     unsafe {
         println!(
@@ -957,10 +1182,94 @@ fn doc_deserialization_sdk_test() {
     }
 }
 
+
+pub const ADDRESS_LIST: [&str; 33] = [
+    "34.214.48.68",
+    "35.166.18.166",
+    "35.165.50.126",
+    "52.42.202.128",
+    "52.12.176.90",
+    "44.233.44.95",
+    "35.167.145.149",
+    "52.34.144.50",
+    "44.240.98.102",
+    "54.201.32.131",
+    "52.10.229.11",
+    "52.13.132.146",
+    "44.228.242.181",
+    "35.82.197.197",
+    "52.40.219.41",
+    "44.239.39.153",
+    "54.149.33.167",
+    "35.164.23.245",
+    "52.33.28.47",
+    "52.43.86.231",
+    "52.43.13.92",
+    "35.163.144.230",
+    "52.89.154.48",
+    "52.24.124.162",
+    "44.227.137.77",
+    "35.85.21.179",
+    "54.187.14.232",
+    "54.68.235.201",
+    "52.13.250.182",
+     "35.82.49.196",
+    "44.232.196.6",
+    "54.189.164.39",
+    "54.213.204.85"
+];
+
+#[test]
+fn check_all_nodes_test() {
+
+    for address in ADDRESS_LIST {
+        let mut sdk = create_dash_sdk_using_single_evonode(address.into(), 0, 0);
+        let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+        let docs_result = unsafe {
+            fetch_documents_with_query_and_sdk(
+                &mut sdk,
+                contract_id,
+                "domain".to_string(),
+                vec![
+                    WhereClause { field: "normalizedLabel".into(), value: Value::Text("b0b1ee".into()), operator: WhereOperator::StartsWith },
+                    WhereClause { field: "normalizedParentDomainName".into(), value: Value::Text("dash".into()), operator: WhereOperator::Equal }
+                ],
+                vec![
+                    OrderClause { field: "normalizedLabel".into(), ascending: true }
+                ],
+                100,
+                None
+            )
+        };
+
+        match docs_result {
+            Ok(docs) => {
+                tracing::info!("{}: success", address);
+            }
+            Err(e) => { println!("{}: error/fail: {}", address, e) }
+        }
+    }
+}
+// #[test]
+// fn doc_deserialization_sdk2_test() {
+//     let mut sdk = create_dash_sdk(0, 0);
+//
+//     unsafe {
+//         println!(
+//             "{:?}", deserialize_document_sdk2(
+//                 &mut sdk,
+//                 base64::decode("AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=").unwrap(),
+//                 Identifier::from_bytes(&DPNS_DATACONTRACT_ID).unwrap(),
+//                 "domain".into()
+//             ).unwrap()
+//         );
+//     }
+// }
+
 // #[test]
 // fn docs_full_query_sdk5_test() {
 //     let mut sdk = create_sdk5(0, 0);
-//     // tracing::warn!("sdk: {:?}", sdk.entry_point.get_sdk());
+//     // tracing::warn!("sdk: {:?}", sdk.get_sdk());
 //     let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
 //     let docs_result = unsafe {
 //         fetch_documents_with_query_and_sdk5(
