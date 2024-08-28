@@ -3,6 +3,8 @@
 use std::hash::Hash;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::thread;
+use dapi_grpc::tonic::codegen::Body;
 
 use dpp::data_contract::DataContract;
 use platform_value::types::identifier::Identifier;
@@ -11,8 +13,10 @@ use drive_proof_verifier::ContextProvider;
 use platform_value::converter::serde_json;
 use dash_sdk::platform::Fetch;
 use dash_sdk::{Sdk, Error};
+use dpp::prelude::CoreBlockHeight;
 use platform_value::types::binary_data::BinaryData;
-use tokio::runtime::Handle;
+use tokio::runtime::{Handle, Runtime};
+use tokio::sync::mpsc;
 use crate::config::Config;
 
 // not supported
@@ -56,7 +60,7 @@ pub struct CallbackContextProvider {
     /// Data contracts cache.
     ///
     /// Users can insert new data contracts into the cache using [`Cache::put`].
-    pub data_contracts_cache: Cache<Identifier, dpp::data_contract::DataContract>,
+    pub data_contracts_cache: Arc<Cache<Identifier, DataContract>>,
 
     /// Quorum public keys cache.
     ///
@@ -83,7 +87,7 @@ impl CallbackContextProvider {
         quorum_public_key_callback: u64,
         data_contract_callback: u64,
         sdk: Option<Arc<Sdk>>,
-        data_contracts_cache_size: NonZeroUsize,
+        data_contract_cache: Arc<Cache<Identifier, DataContract>>,
         quorum_public_keys_cache_size: NonZeroUsize,
     ) -> Result<Self, Error> {
         unsafe {
@@ -93,7 +97,7 @@ impl CallbackContextProvider {
                 quorum_public_key_callback: callback1,
                 data_contract_callback: callback2,
                 sdk,
-                data_contracts_cache: Cache::new(data_contracts_cache_size),
+                data_contracts_cache: data_contract_cache,
                 quorum_public_keys_cache: Cache::new(quorum_public_keys_cache_size),
                 #[cfg(feature = "mocks")]
                 dump_dir: None,
@@ -150,27 +154,34 @@ impl ContextProvider for CallbackContextProvider {
     ) -> Result<Option<Arc<DataContract>>, ContextProviderError> {
         if let Some(contract) = self.data_contracts_cache.get(data_contract_id) {
             return Ok(Some(contract));
+        } else {
+            return Ok(None);
         };
+        // tracing::info!("CallbackContextProvider: {:p}", &self as *const _);
 
-        let sdk = match &self.sdk {
-            Some(sdk) => sdk,
-            None => {
-                tracing::warn!("data contract cache miss and no sdk provided, skipping fetch");
-                return Ok(None);
-            }
-        };
+        // let sdk = match &self.sdk {
+        //     Some(sdk) => sdk,
+        //     None => {
+        //         tracing::warn!("data contract cache miss and no sdk provided, skipping fetch");
+        //         return Ok(None);
+        //     }
+        // };
+        //
+        // let handle = Handle::current();
+        // let data_contract = tokio::task::block_in_place(|| {
+        //     handle.block_on(async {
+        //         DataContract::fetch(&sdk, *data_contract_id).await
+        //     }).map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))
+        // })?;
+        // if let Some(ref dc) = data_contract {
+        //     self.data_contracts_cache.put(*data_contract_id, dc.clone());
+        // };
+        //
+        // Ok(data_contract.map(Arc::new))
+    }
 
-        let handle = Handle::current();
-        let data_contract = tokio::task::block_in_place(|| {
-            handle.block_on(async {
-                DataContract::fetch(&sdk, *data_contract_id).await
-            }).map_err(|e| ContextProviderError::DataContractFailure(e.to_string()))
-        })?;
-        if let Some(ref dc) = data_contract {
-            self.data_contracts_cache.put(*data_contract_id, dc.clone());
-        };
-
-        Ok(data_contract.map(Arc::new))
+    fn get_platform_activation_height(&self) -> Result<CoreBlockHeight, ContextProviderError> {
+        Ok(1_000_000)
     }
 }
 

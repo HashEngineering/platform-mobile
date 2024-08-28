@@ -8,19 +8,17 @@ use dash_sdk::platform::types::identity::PublicKeyHash;
 use dpp::data_contract::DataContract;
 use serde::Deserialize;
 use tokio::runtime::{Runtime, Builder};
-use crate::config::RustSdk;
-use crate::config::create_sdk;
-// #[ferment_macro::export]
-// pub fn fetch_identity(identifier: Identifier) -> Identity {
-//     Identity::create_basic_identity(identifier.into(), PlatformVersion::latest()).expect("failed")
-//
-//     // Result::Err(ProtocolError::IdentifierError("error with id".into()))
-// }
-//
-// #[ferment_macro::export]
-// pub fn fetch_identity2(identifier: Identifier) -> Identity {
-//     identity_read(&identifier).expect("not found")
-// }
+use dpp::dashcore::PubkeyHash;
+use drive_proof_verifier::types::IdentityBalance;
+use platform_value::string_encoding::Encoding;
+use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID, EntryPoint};
+use crate::fetch_document::get_document;
+use crate::logs::setup_logs;
+use crate::sdk::{create_dash_sdk, DashSdk};
+
+pub fn test_identifier() -> Identifier {
+    Identifier::from_string("7Yowk46VwwHqmD5yZyyygggh937aP6h2UW7aQWBdWpM5", Encoding::Base58).unwrap()
+}
 
 #[ferment_macro::export]
 pub fn fetch_identity_with_core(identifier: Identifier) -> Result<Identity, String> {
@@ -44,7 +42,7 @@ pub fn fetch_identity(identifier: Identifier,
 
 #[ferment_macro::export]
 pub fn fetch_identity_with_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     identifier: Identifier
 ) -> Result<Identity, String> {
     tracing::info!("fetch_identity_with_sdk");
@@ -58,7 +56,7 @@ pub fn fetch_identity_with_sdk(
 
 #[ferment_macro::export]
 pub fn fetch_identity_balance_with_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     identifier: Identifier
 ) -> Result<u64, String> {
     tracing::info!("fetch_identity_with_sdk");
@@ -84,7 +82,7 @@ pub fn fetch_identity_with_keyhash(key_hash: [u8; 20],
 
 #[ferment_macro::export]
 pub fn fetch_identity_with_keyhash_sdk(
-    rust_sdk: *mut RustSdk,
+    rust_sdk: *mut DashSdk,
     key_hash: [u8; 20]
 ) -> Result<Identity, String> {
     tracing::info!("fetch_identity_with_keyhash_sdk");
@@ -95,16 +93,6 @@ pub fn fetch_identity_with_keyhash_sdk(
         }
     }
 }
-
-
-//use serde::Deserialize;
-use dpp::dashcore::PubkeyHash;
-use drive_proof_verifier::types::IdentityBalance;
-use platform_value::string_encoding::Encoding;
-use crate::config::{Config, DPNS_DATACONTRACT_ID, DPNS_DATACONTRACT_OWNER_ID};
-use crate::fetch_document::get_document;
-use crate::logs::setup_logs;
-
 
 fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
     setup_logs();
@@ -160,7 +148,7 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
         };
         tracing::info!("Finished SDK, {:?}", sdk);
         tracing::info!("Call fetch");
-        let identity_result = Identity::fetch(&sdk, id).await;
+        let identity_result = Identity::fetch(&sdk, id,).await;
 
         match identity_result {
             Ok(Some(identity)) => {
@@ -177,18 +165,19 @@ fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Ident
     })
 }
 
-unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Result<Identity, ProtocolError> {
+unsafe fn identity_read_with_sdk(rust_sdk: *mut DashSdk, id: &Identifier) -> Result<Identity, ProtocolError> {
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+    let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let id: Identifier = id.clone();
         tracing::info!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         tracing::info!("Finished SDK, {:?}", sdk);
         tracing::info!("Call fetch");
-        let identity_result = Identity::fetch(&sdk, id).await;
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+        let identity_result = Identity::fetch_with_settings(&sdk, id, settings).await;
 
         match identity_result {
             Ok(Some(identity)) => Ok(identity),
@@ -201,9 +190,9 @@ unsafe fn identity_read_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Res
 }
 
 
-unsafe fn identity_read_balance_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier) -> Result<u64, ProtocolError> {
+unsafe fn identity_read_balance_with_sdk(rust_sdk: *mut DashSdk, id: &Identifier) -> Result<u64, ProtocolError> {
 
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() }.clone();
+    let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -211,10 +200,11 @@ unsafe fn identity_read_balance_with_sdk(rust_sdk: *mut RustSdk, id: &Identifier
         let cfg = Config::new();
         let id: Identifier = id.clone();
         tracing::info!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         tracing::info!("Finished SDK, {:?}", sdk);
         tracing::info!("Call fetch");
-        let identity_result = IdentityBalance::fetch(&sdk, id).await;
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+        let identity_result = IdentityBalance::fetch_with_settings(&sdk, id, settings).await;
 
         match identity_result {
             Ok(Some(identity)) => Ok(identity),
@@ -265,11 +255,10 @@ fn identity_from_keyhash_with_callbacks(pubkey_hash: &PublicKeyHash, q: u64, d: 
     })
 }
 
-unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &PublicKeyHash) -> Result<Identity, ProtocolError> {
-    setup_logs();
+unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut DashSdk, pubkey_hash: &PublicKeyHash) -> Result<Identity, ProtocolError> {
     // Create a new Tokio runtime
     //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = unsafe { (*rust_sdk).entry_point.get_runtime() };
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
@@ -277,10 +266,11 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
         let cfg = Config::new();
         let key_hash = pubkey_hash.clone();
         tracing::info!("Setting up SDK");
-        let sdk = unsafe { (*rust_sdk).entry_point.get_sdk() };
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
         tracing::info!("Finished SDK, {:?}", sdk);
         tracing::info!("Call fetch");
-        let identity_result = Identity::fetch(&sdk, key_hash).await;
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+        let identity_result = Identity::fetch_with_settings(&sdk, key_hash, settings).await;
 
         match identity_result {
             Ok(Some(identity)) => Ok(identity),
@@ -294,7 +284,7 @@ unsafe fn identity_from_keyhash_sdk(rust_sdk: *mut RustSdk, pubkey_hash: &Public
 
 #[test]
 fn fetch_identity_test() {
-    let result = fetch_identity_with_core(Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap());
+    let result = fetch_identity_with_core(test_identifier());
     match result {
         Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
         Err(err) => panic!("error fetching identity: {}", err)
@@ -303,10 +293,10 @@ fn fetch_identity_test() {
 
 #[test]
 fn fetch_identity_with_sdk_test() {
-    let mut rust_sdk = create_sdk(0, 0);
+    let mut rust_sdk = create_dash_sdk(0, 0);
     let result = fetch_identity_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
+        test_identifier()
     );
     match result {
         Ok(identity) => tracing::info!("success fetching identity: {:?}", identity),
@@ -316,10 +306,10 @@ fn fetch_identity_with_sdk_test() {
 
 #[test]
 fn fetch_identity_balance_with_sdk_test() {
-    let mut rust_sdk = create_sdk(0, 0);
+    let mut rust_sdk = create_dash_sdk(0, 0);
     let result = fetch_identity_balance_with_sdk(
         &mut rust_sdk,
-        Identifier::from_string("3GupYWrQggzFBVZgL7fyHWensbWLwZBYFSbTXiSjXN5S", Encoding::Base58).unwrap()
+        test_identifier()
     );
     match result {
         Ok(balance) => tracing::info!("success fetching identity: {:?}", balance),
@@ -327,8 +317,8 @@ fn fetch_identity_balance_with_sdk_test() {
     }
 }
 
-#[test]
-fn get_documents_test() {
-    let result = get_document();
-    tracing::info!("ownerId = {}", result)
-}
+// #[test]
+// fn get_documents_test() {
+//     let result = get_document();
+//     tracing::info!("ownerId = {}", result)
+// }

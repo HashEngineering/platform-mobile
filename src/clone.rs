@@ -1,10 +1,18 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use dpp::document::Document;
 use dpp::document::v0::DocumentV0;
 use dpp::identity::identity_public_key::TimestampMillis;
 use dpp::identity::identity_public_key::KeyID;
 use dpp::prelude::{BlockHeight, CoreBlockHeight, Revision};
+use dpp::voting::contender_structs::{ContenderWithSerializedDocument, ContenderWithSerializedDocumentV0};
+use dpp::voting::vote_choices::resource_vote_choice::ResourceVoteChoice;
+use dpp::voting::vote_polls::contested_document_resource_vote_poll::ContestedDocumentResourceVotePoll;
+use dpp::voting::vote_polls::VotePoll;
+use dpp::voting::votes::resource_vote::ResourceVote;
+use dpp::voting::votes::resource_vote::v0::ResourceVoteV0;
+use dpp::voting::votes::Vote;
 use drive::query::{OrderClause, WhereClause, WhereOperator};
+use drive_proof_verifier::types::{Contenders, ContestedResource, ContestedResources, Voter, Voters};
 use platform_value::{Hash256, Value, ValueMap};
 
 #[allow(non_snake_case)]
@@ -114,5 +122,87 @@ pub fn OrderClause_clone(o: OrderClause) -> OrderClause {
 #[allow(non_snake_case)]
 #[ferment_macro::export]
 pub fn Hash256_clone(o: Hash256) -> Hash256 {
+    o.clone()
+}
+
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn Contenders_clone(o: Contenders) -> Contenders {
+    o.clone()
+}
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ContenderWithSerializedDocument_clone(o: ContenderWithSerializedDocument) -> ContenderWithSerializedDocument {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ContenderWithSerializedDocumentV0_clone(o: ContenderWithSerializedDocumentV0) -> ContenderWithSerializedDocumentV0 {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ContestedResources_clone(o: ContestedResources) -> ContestedResources {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ContestedResource_clone(o: ContestedResource) -> ContestedResource {
+    o.clone()
+}
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn Vote_clone(o: Vote) -> Vote {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn Voter_clone(o: Voter) -> Voter {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn Voters_clone(o: Voters) -> Voters {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn std_collections_BTreeSet_drive_proof_verifier_types_Voter_clone(o: BTreeSet<Voter>) -> BTreeSet<Voter> {
+    o.clone()
+}
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn VotePoll_clone(o: VotePoll) -> VotePoll {
+    o.clone()
+}
+
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ContestedDocumentResourceVotePoll_clone(o: ContestedDocumentResourceVotePoll) -> ContestedDocumentResourceVotePoll {
+    o.clone()
+}
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ResourceVote_clone(o: ResourceVote) -> ResourceVote {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ResourceVoteChoice_clone(o: ResourceVoteChoice) -> ResourceVoteChoice {
+    o.clone()
+}
+
+#[allow(non_snake_case)]
+#[ferment_macro::export]
+pub fn ResourceVoteV0_clone(o: ResourceVoteV0) -> ResourceVoteV0 {
     o.clone()
 }

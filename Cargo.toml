@@ -11,7 +11,7 @@ platform-value = { path = "../platform/packages/rs-platform-value" }
 data-contracts = { path = "../platform/packages/data-contracts" }
 dpp = { path = "../platform/packages/rs-dpp" }
 dash-sdk = { path = "../platform/packages/rs-sdk" }
-#rs-dapi-client = { path = "../platform/packages/rs-dapi-client" }
+rs-dapi-client = { path = "../platform/packages/rs-dapi-client" }
 platform-version = { path = "../platform/packages/rs-platform-version" }
 dapi-grpc = { path = "../platform/packages/dapi-grpc" }
 drive-proof-verifier = { path = "../platform/packages/rs-drive-proof-verifier" }
@@ -43,7 +43,17 @@ dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
     "signer",
     "serde",
 ], default-features = false, branch = "master" }
+# dashcore-rpc is only needed for core rpc; TODO remove once we have correct core rpc impl
+dashcore-rpc = { git = "https://github.com/dashpay/rust-dashcore-rpc", tag = "v0.15.4" }
 rand = "0.8.5"
+base64 = "0.13"
+tonic = { version = "0.11", features = [
+    "codegen",
+    "prost",
+], default-features = false }
+
+[target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2.155"
 
 #[build-dependencies]
 #cbindgen = "0.26.0"
