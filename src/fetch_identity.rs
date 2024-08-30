@@ -129,7 +129,6 @@ fn identity_read(id: &Identifier) -> Result<Identity, ProtocolError> {
 fn identity_read_with_callbacks(id: &Identifier, q: u64, d: u64) -> Result<Identity, ProtocolError> {
     setup_logs();
     // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
     let rt = Builder::new_current_thread()
         .enable_all() // Enables all I/O and time drivers
         .build()
@@ -316,9 +315,3 @@ fn fetch_identity_balance_with_sdk_test() {
         Err(err) => panic!("error fetching identity: {}", err)
     }
 }
-
-// #[test]
-// fn get_documents_test() {
-//     let result = get_document();
-//     tracing::info!("ownerId = {}", result)
-// }
