@@ -112,8 +112,7 @@
           {
             "normalizedLabel": "asc"
           }
-        ],
-        "unique": true
+        ]
       }
     ],
     "required": [
