@@ -14,7 +14,15 @@ use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
 use crate::logs::setup_logs;
 use crate::sdk::{create_dash_sdk, create_dash_sdk_using_single_evonode};
 use crate::sdk::DashSdk;
-use rs_dapi_client::DapiClientError;
+use dash_sdk::Error;
+use drive_proof_verifier::types::Documents;
+use rs_dapi_client::{DapiClientError, RequestSettings};
+use rs_dapi_client::transport::BoxFuture;
+use dpp::version::LATEST_PLATFORM_VERSION;
+use dpp::data_contract::accessors::v0::DataContractV0Getters;
+use dpp::document::serialization_traits::DocumentPlatformConversionMethodsV0;
+use crate::provider::Cache;
+
 #[ferment_macro::export]
 pub fn get_document()-> Document {
     document_read()
@@ -426,30 +434,53 @@ pub fn fetch_documents_with_query(contract_id: Identifier,
 //     })
 // }
 
+fn fetch_documents_with_retry(
+    sdk: Arc<Sdk>,  // No need for a reference; pass the Arc by value
+    data_contract_cache: Arc<Cache<Identifier, DataContract>>,
+    query: DocumentQuery,
+    request_settings: RequestSettings,
+    retries_left: usize,
+) -> BoxFuture<'static, Result<Documents, Error>> {
+    // Clone the Arc<Sdk> here to ensure it's owned by the future
+    Box::pin(async move {
+        match Document::fetch_many_with_settings(&sdk, query.clone(), request_settings).await {
+            Ok(documents) => Ok(documents),
+            Err(error) => {
+                if retries_left > 1 {
+                    if error.to_string().contains("contract not found error: contract not found when querying from value with contract info") {
+                        if (data_contract_cache.get(&query.data_contract.id()) != None) {
+                            return fetch_documents_with_retry(sdk, data_contract_cache, query, request_settings, retries_left - 1).await;
+                        }
+                    }
+                }
+                Err(error)
+            }
+        }
+    })
+}
 
 #[ferment_macro::export]
-pub unsafe fn fetch_documents_with_query_and_sdk(
+pub fn fetch_documents_with_query_and_sdk(
                                   rust_sdk: *mut DashSdk,
-                                  contract_id: Identifier,
+                                  data_contract_id: Identifier,
                                   document_type: String,
                                   where_clauses: Vec<WhereClause>,
                                   order_clauses: Vec<OrderClause>,
                                   limit: u32,
                                   start: Option<StartPoint>
 ) -> Result<Vec<Document>, String> {
-    let rt = (*rust_sdk).get_runtime();
+    let rt = unsafe { (*rust_sdk).get_runtime() };
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let sdk = (*rust_sdk).get_sdk();
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
 
-        let data_contract_id = contract_id;
         tracing::warn!("using existing data contract id and fetching...");
 
-        let contract = match ((*rust_sdk).get_data_contract(&contract_id)) {
+        let contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
             Some(data_contract) => data_contract.clone(),
             None => {
-                let request_settings = (*rust_sdk).get_request_settings();
+                let request_settings = unsafe { (*rust_sdk).get_request_settings() };
                 match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
                          .await) {
                     Ok(Some(data_contract)) => {
@@ -482,9 +513,12 @@ pub unsafe fn fetch_documents_with_query_and_sdk(
         };
         let settings = unsafe { (*rust_sdk).get_request_settings() };
         tracing::warn!("fetching many... query created");
-        let docs = Document::fetch_many_with_settings(&sdk, all_docs_query, settings)
-            .await;
-        match docs {
+        let extra_retries = match settings.retries {
+            Some(retries) => retries,
+            None => 5 as usize
+        };
+        let data_contract_cache = unsafe { (*rust_sdk).data_contract_cache.clone() };
+        match fetch_documents_with_retry(sdk.clone(), data_contract_cache, all_docs_query, settings, extra_retries).await {
             Ok(docs) => {
                 tracing::warn!("convert to Vec");
                 let into_vec = |map: BTreeMap<Identifier, Option<Document>>| {
@@ -591,9 +625,6 @@ pub unsafe fn fetch_documents_with_query_and_sdk2(
 // Identifier: EeHNsyw3MTJGquJxR45K8Wnt7BvTCLyuxGDAgxHdoGnA
 // Serialized:AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=
 // Votes: 0
-use dpp::version::LATEST_PLATFORM_VERSION;
-use dpp::data_contract::accessors::v0::DataContractV0Getters;
-use dpp::document::serialization_traits::DocumentPlatformConversionMethodsV0;
 #[ferment_macro::export]
 pub unsafe fn deserialize_document_sdk(
     rust_sdk: *mut DashSdk,
