@@ -6,7 +6,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use dash_sdk::{Error, RequestSettings, Sdk};
-use dash_sdk::platform::Fetch;
+use dash_sdk::platform::{DocumentQuery, Fetch};
 use dash_sdk::platform::transition::put_document::PutDocument;
 use dash_sdk::platform::transition::put_identity::PutIdentity;
 use dash_sdk::platform::transition::put_settings::PutSettings;
@@ -56,10 +56,14 @@ use crate::provider::Cache;
 use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
 use dapi_grpc::platform::v0::wait_for_state_transition_result_response::{Version, wait_for_state_transition_result_response_v0};
 use dash_sdk::platform::transition::top_up_identity::TopUpIdentity;
+use dpp::data_contract::document_type::accessors::DocumentTypeV0Getters;
 use dpp::state_transition::StateTransition;
 use crate::sdk::DashSdk;
-
-//use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
+use dpp::serialization::Signable;
+use dpp::serialization::PlatformSerializable;
+use drive_proof_verifier::types::Documents;
+use rs_dapi_client::transport::BoxFuture;
+use dash_sdk::platform::transition::replace_document::ReplaceDocument;
 pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
     match &response.version {
         Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(response_v0)) => {
@@ -77,7 +81,7 @@ pub async fn wait_for_response_concurrent(
     new_preorder_document: &Document,
     sdk: &Sdk,
     preorder_transition: StateTransition,
-    data_contract: DataContract,
+    data_contract: Arc<DataContract>,
     settings: PutSettings
 ) -> Result<Document, dash_sdk::Error> {
     let mut handles = vec![];
@@ -86,7 +90,7 @@ pub async fn wait_for_response_concurrent(
         let new_preorder_document = new_preorder_document.clone();
         let sdk = sdk.clone();
         let preorder_transition = preorder_transition.clone();
-        let data_contract = Arc::new(data_contract.clone());
+        let data_contract = data_contract.clone();
         let settings = Some(settings.clone());
 
         tracing::info!("spawning thread {} of 5", i + 1);
@@ -200,7 +204,7 @@ impl CallbackSigner {
         signer_callback: u64,
     ) -> Result<Self, Error> {
         unsafe {
-            let callback: SignerCallback = std::mem::transmute(signer_callback);
+            let callback: SignerCallback = std::mem::transmute(signer_callback as usize);
             Ok(Self {
                 signer_callback: callback
             })
@@ -383,7 +387,17 @@ pub fn put_identity_sdk(
         };
         let signer = CallbackSigner::new(signer_callback).expect("signer");
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
-        trace!("Call Identity::put_to_platform_and_wait_for_response");
+        tracing::info!("Call Identity::put_to_platform_and_wait_for_response");
+
+        let asset_lock_proof: AssetLockProof = asset_lock_proof.into();
+        // this PR has not been merged yet, but there is a way to detect if the put_identity will fail
+        // match asset_lock_proof.verify(&sdk) {
+        //     Ok(_) => {},
+        //     Err(error) => {
+        //         return Err(error.to_string())
+        //     }
+        // }
+
         let state_transition_result = Identity::put_to_platform(
             &identity,
             &sdk,
@@ -397,6 +411,9 @@ pub fn put_identity_sdk(
             Ok(st) => st,
             Err(err) => return Err(err.to_string())
         };
+
+        tracing::info!("state transition (signable): {}", hex::encode(state_transition.signable_bytes().unwrap()));
+        tracing::info!("state transition (serialized): {}", hex::encode(state_transition.serialize_to_bytes().unwrap()));
 
         let identity_result = wait_for_response_concurrent_identity(
             &identity,
@@ -532,6 +549,7 @@ pub fn put_document_sdk(
             Ok(Some(contract)) => contract,
             Ok(None) => return Err("no contract".to_string()),
             Err(e) => return Err(e.to_string())
+        let data_contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
         };
 
         let document_type = data_contract
@@ -645,9 +663,7 @@ pub fn replace_document_sdk(
     identity_public_key: IdentityPublicKey,
     block_height: BlockHeight,
     core_block_height: CoreBlockHeight,
-    signer_callback: u64,
-    quorum_key_callback: u64,
-    d: u64
+    signer_callback: u64
 ) -> Result<Document, String> {
     let rt = unsafe { (*rust_sdk).get_runtime() };
 
@@ -661,10 +677,20 @@ pub fn replace_document_sdk(
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
+        let data_contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+                match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
+                    .await) {
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
         };
 
         let document_type = data_contract
