@@ -188,12 +188,6 @@ pub async fn wait_for_response_concurrent_identity(
 //#[ferment_macro::export]
 pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
 
-// #[ferment_macro::export]
-// pub type SignerCallback2 = fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
-// #[ferment_macro::export]
-// pub type SignerCallback3 = extern "C" fn(key: Vec<u8>, data: Vec<u8>, result: Vec<u8>) -> u32;
-//#[ferment_macro::export]
-//type SignerCallback = extern "C" fn(identity_public_key: * const u8, data: * const u8) -> * const u8;
 #[derive(Debug)]
 pub struct CallbackSigner {
     signer_callback: SignerCallback
@@ -545,11 +539,20 @@ pub fn put_document_sdk(
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
         let data_contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+                match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
+                    .await) {
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
         };
 
         let document_type = data_contract
