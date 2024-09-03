@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::os::raw::c_void;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use platform_value::{Identifier, IdentifierBytes32};
@@ -372,6 +372,7 @@ impl Config {
 
     pub async fn setup_api_with_callbacks(&self, q: u64, d: u64) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
+            std::ptr::null(),
             q,
             d,
             None,
@@ -391,11 +392,13 @@ impl Config {
 
     pub async fn setup_api_with_callbacks_cache(
         &self,
+        context_provider_context: * const c_void,
         q: u64,
         d: u64,
         data_contract_cache: Arc<Cache<Identifier, DataContract>>,
     ) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
+            context_provider_context,
             q,
             d,
             None,
@@ -421,6 +424,7 @@ impl Config {
         address_list: Vec<String>
     ) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
+            std::ptr::null(),
             q,
             d,
             None,

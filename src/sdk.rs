@@ -1,3 +1,4 @@
+use std::os::raw::c_void;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use dash_sdk::{RequestSettings, Sdk};
@@ -15,6 +16,7 @@ pub struct DashSdk {
     pub config: Arc<Config>,
     pub runtime: Arc<Runtime>,
     pub sdk: Arc<Sdk>,
+    pub context_provider_context: * const c_void,
     pub data_contract_cache: Arc<Cache<Identifier, DataContract>>,
     pub request_settings: RequestSettings
 }
@@ -82,9 +84,17 @@ pub fn update_sdk_with_address_list(
     });
 }
 
-
 #[ferment_macro::export]
 pub fn create_dash_sdk(
+    quorum_public_key_callback: u64,
+    data_contract_callback: u64
+) -> DashSdk {
+    create_dash_sdk_with_context(0, quorum_public_key_callback, data_contract_callback)
+}
+
+#[ferment_macro::export]
+pub fn create_dash_sdk_with_context(
+    context_provider_context: usize,
     quorum_public_key_callback: u64,
     data_contract_callback: u64
 ) -> DashSdk {
@@ -96,13 +106,19 @@ pub fn create_dash_sdk(
             .expect("Failed to create a runtime")
     );
 
+    let context_provider_context: * const c_void = context_provider_context as * const c_void;
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
         let cfg = Config::new();
         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
+            cfg.setup_api_with_callbacks_cache(
+                context_provider_context.clone(),
+                quorum_public_key_callback,
+                data_contract_callback,
+                data_contract_cache.clone()
+            ).await
         } else {
             // use Dash Core for quorum public keys
             cfg.setup_api().await
@@ -111,6 +127,7 @@ pub fn create_dash_sdk(
             config: Arc::new(cfg),
             runtime: rt.clone(),
             sdk: sdk,
+            context_provider_context,
             data_contract_cache: data_contract_cache,
             request_settings: RequestSettings {
                 connect_timeout: None,
@@ -151,6 +168,7 @@ pub fn create_dash_sdk_using_single_evonode(
             config: Arc::new(cfg),
             runtime: rt.clone(),
             sdk: sdk,
+            context_provider_context: std::ptr::null(),
             data_contract_cache: data_contract_cache,
             request_settings: RequestSettings {
                 connect_timeout: None,
