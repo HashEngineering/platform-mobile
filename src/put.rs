@@ -235,17 +235,6 @@ impl Signer for CallbackSigner {
     }
 }
 
-#[ferment_macro::export]
-pub fn put_identity_create(identity: Identity, signer_callback: u64) -> Identity {
-    let signer = CallbackSigner::new(signer_callback).expect("signer not valid");
-    let data = [0u8; 1024];
-    match signer.sign(&IdentityPublicKey::random_authentication_key(1, None, PlatformVersion::latest()), data.as_slice()) {
-        Ok(sig) => tracing::info!("signature: {:?}", sig),
-        Err(e) => tracing::info!("signature error: {}", e)
-    }
-    identity
-}
-
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 #[ferment_macro::export]
 pub struct OutPointFFI {
