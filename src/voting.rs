@@ -163,8 +163,8 @@ pub fn get_vote_contenders(
             result_type:
             ContestedDocumentVotePollDriveQueryResultType::DocumentsAndVoteTally,
         };
-
-        match ContenderWithSerializedDocument::fetch_many(&sdk, query.clone()).await {
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+        match ContenderWithSerializedDocument::fetch_many_with_settings(&sdk, query.clone(), settings).await {
                 Ok(contenders) => Ok(contenders),
                 Err(e) => Err(e.to_string())
         }
@@ -227,7 +227,8 @@ pub fn get_contested_resources(
             };
 
             tracing::info!("get_contested_resources: query ContestedResources for {:?}", query);
-            let contested_resources = ContestedResource::fetch_many(&sdk, query).await;
+            let settings = unsafe { (*rust_sdk).get_request_settings() };
+            let contested_resources = ContestedResource::fetch_many_with_settings(&sdk, query, settings).await;
 
             match contested_resources {
                 Ok(resources) => Ok(resources),
