@@ -24,31 +24,6 @@ use crate::config::Config;
 
 // not supported
 
-//#[ferment_macro::export]
-pub type QuorumPublicKeyCallbackExport = unsafe extern "C" fn(quorum_type: u32, quorum_hash: [u8; 32], core_chain_locked_height: u32) -> [u8; 96];
-
-// not supported
-// #[ferment_macro::opaque]
-// pub type QuorumPublicKeyCallbackExport2 = extern "C" fn(quorum_type: u32, quorum_hash: Vec<u8>, core_chain_locked_height: u32) -> Vec<u8>;
-
-#[ferment_macro::opaque]
-pub type QuorumPublicKeyCallbackExport3 = unsafe extern "C" fn(quorum_type: u32, quorum_hash: BinaryData, core_chain_locked_height: u32) -> BinaryData;
-
-// #[ferment_macro::export]
-// pub fn set_callback(c1: QuorumPublicKeyCallbackExport) {
-//     //(c1)(1, )
-// }
-
-// #[derive(Clone)]
-// #[ferment_macro::opaque]
-// pub struct FFIContext2 {
-//     //pub caller: Arc<dyn Fn(*const FFIContext, u32, String) -> String>,
-//     //pub caller2: Arc<dyn Fn(*const FFIContext, u32, Vec<u8>, u32) -> Vec<u8>>,
-//     pub caller3: Arc<dyn Fn(u32, [u8; 32], u32) -> [u8; 96]>,
-//     // pub destructor: Arc<dyn Fn(*const FFIContext, String)>,
-//     // pub destructor: Arc<dyn Fn(String)>,
-// }
-
 // not supported with ferment
 type QuorumPublicKeyCallback = extern "C" fn(context: * const c_void, quorum_type: u32, quorum_hash: *const u8, core_chain_locked_height: u32, result: * mut u8);
 
@@ -168,13 +143,14 @@ impl ContextProvider for CallbackContextProvider {
         &self,
         data_contract_id: &Identifier,
     ) -> Result<Option<Arc<DataContract>>, ContextProviderError> {
-        if let Some(contract) = self.data_contracts_cache.get(data_contract_id) {
-            return Ok(Some(contract));
+        return if let Some(contract) = self.data_contracts_cache.get(data_contract_id) {
+            Ok(Some(contract))
         } else {
-            return Ok(None);
+            Ok(None)
         };
         // tracing::info!("CallbackContextProvider: {:p}", &self as *const _);
 
+        // on android, this gets stuck (deadlock)
         // let sdk = match &self.sdk {
         //     Some(sdk) => sdk,
         //     None => {
