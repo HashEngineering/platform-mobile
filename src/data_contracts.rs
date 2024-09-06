@@ -98,15 +98,6 @@ pub fn fetch_data_contract(
         let sdk = unsafe { (*rust_sdk).get_sdk() };
 
         tracing::warn!("using existing data contract id and fetching...");
-        // let contract =
-        //     DataContract::fetch(&sdk, data_contract_id.clone())
-        //         .await;
-        // match contract {
-        //     Ok(Some(data_contract)) => Ok(data_contract.into()),
-        //     Ok(None) => Err("data contract not found".to_string()),
-        //     Err(e) => Err(e.to_string())
-        // }
-
         match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
             Some(data_contract) => Ok(Some(data_contract.into())),
             None => {
