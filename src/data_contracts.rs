@@ -11,10 +11,10 @@ use platform_value::string_encoding::Encoding;
 use rs_dapi_client::RequestSettings;
 use rs_dapi_client::transport::BoxFuture;
 use tokio::runtime::Builder;
-use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
+use crate::config::{Config, EntryPoint};
 use crate::logs::setup_logs;
 use crate::provider::Cache;
-use crate::sdk::{create_dash_sdk, DashSdk};
+use crate::sdk::{create_dash_sdk_using_core_testnet, DashSdk};
 
 #[derive(Clone, Debug)]
 #[ferment_macro::export]
@@ -128,7 +128,7 @@ pub fn fetch_data_contract(
 
 #[test]
 fn get_data_contract_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
     let data_contract = fetch_data_contract(
         & mut sdk,
         Identifier::from(dpns_contract::ID_BYTES)
@@ -138,7 +138,7 @@ fn get_data_contract_test() {
 
 #[test]
 fn get_missing_data_contract_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
     let data_contract_result = fetch_data_contract(
         & mut sdk,
         Identifier::from_string("Fds5DDfXoLwpUZ71AAVYZP1uod8S7Ze2bR28JExBvZKR", Encoding::Base58).expect("identifier"),
