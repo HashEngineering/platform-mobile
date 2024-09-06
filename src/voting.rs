@@ -31,10 +31,10 @@ use platform_value::string_encoding::Encoding;
 use platform_version::version::PlatformVersion;
 use simple_signer::signer::SimpleSigner;
 use tracing::trace;
-use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
+use crate::config::{Config, EntryPoint};
 use crate::fetch_document::fetch_documents_with_query_and_sdk;
 use crate::put::{CallbackSigner, wait_for_response_concurrent};
-use crate::sdk::{create_dash_sdk, DashSdk};
+use crate::sdk::{create_dash_sdk_using_core_testnet, DashSdk};
 
 #[ferment_macro::export]
 pub fn put_vote_to_platform(
@@ -242,9 +242,9 @@ pub fn get_contested_resources(
 
 #[test]
 fn get_contested_resources_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
     tracing::warn!("sdk: {:?}", sdk.get_sdk());
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let resources_result = get_contested_resources(
             &mut sdk,
             "domain".to_string(),
@@ -258,9 +258,9 @@ fn get_contested_resources_test() {
 
 #[test]
 fn get_vote_contenders_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
     tracing::warn!("sdk: {:?}", sdk.get_sdk());
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let resources_result = get_vote_contenders(
         &mut sdk,
         "parentNameAndLabel".to_string(),
@@ -304,7 +304,7 @@ pub fn get_votes(
 
 #[test]
 fn get_votes_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
     tracing::warn!("sdk: {:?}", sdk.get_sdk());
     let contract_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap();
     let resources_result = get_votes(
