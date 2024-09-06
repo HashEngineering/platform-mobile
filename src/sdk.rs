@@ -1,6 +1,7 @@
 use std::os::raw::c_void;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::Duration;
 use dash_sdk::{RequestSettings, Sdk};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract;
@@ -71,6 +72,7 @@ pub fn update_sdk_with_address_list(
 
 
         let sdk = cfg.setup_api_with_callbacks_cache_list(
+            unsafe { (*rust_sdk).context_provider_context },
             quorum_public_key_callback,
             data_contract_callback,
             unsafe { (*rust_sdk).get_data_contract_cache() },
@@ -84,19 +86,35 @@ pub fn update_sdk_with_address_list(
     });
 }
 
+pub fn create_dash_sdk_using_core_testnet() -> DashSdk {
+    create_dash_sdk(0, 0, true)
+}
 #[ferment_macro::export]
 pub fn create_dash_sdk(
     quorum_public_key_callback: u64,
-    data_contract_callback: u64
+    data_contract_callback: u64,
+    is_testnet: bool
 ) -> DashSdk {
-    create_dash_sdk_with_context(0, quorum_public_key_callback, data_contract_callback)
+    create_dash_sdk_with_context(
+        0,
+        quorum_public_key_callback,
+        data_contract_callback,
+        is_testnet,
+        10,
+        5,
+        5
+    )
 }
 
 #[ferment_macro::export]
 pub fn create_dash_sdk_with_context(
     context_provider_context: usize,
     quorum_public_key_callback: u64,
-    data_contract_callback: u64
+    data_contract_callback: u64,
+    is_testnet: bool,
+    connect_timeout: usize,
+    timeout: usize,
+    retries: usize
 ) -> DashSdk {
     setup_logs();
     let rt = Arc::new(
@@ -105,11 +123,21 @@ pub fn create_dash_sdk_with_context(
             .build()
             .expect("Failed to create a runtime")
     );
+    tracing::info!("create_dash_sdk_with_context({}, {}, {}, is_testnet{}, ...)",
+        context_provider_context,
+        quorum_public_key_callback,
+        data_contract_callback,
+        is_testnet
+    );
 
-    let context_provider_context: * const c_void = context_provider_context as * const c_void;
-    // Execute the async block using the Tokio runtime
+    let context_provider_context: *const c_void = context_provider_context as *const c_void;
     rt.block_on(async {
-        let cfg = Config::new();
+        let cfg = if is_testnet {
+            Config::new_testnet()
+        } else {
+            Config::new_mainnet()
+        };
+        tracing::info!("config created");
         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
@@ -130,9 +158,9 @@ pub fn create_dash_sdk_with_context(
             context_provider_context,
             data_contract_cache: data_contract_cache,
             request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: Some(5),
+                connect_timeout: Some(Duration::from_secs(connect_timeout as u64)),
+                timeout: Some(Duration::from_secs(timeout as u64)),
+                retries: Some(retries),
                 ban_failed_address: Some(true),
             }
         }
@@ -159,7 +187,7 @@ pub fn create_dash_sdk_using_single_evonode(
         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
-            cfg.setup_api_with_callbacks_cache_list(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone(), vec![evonode]).await
+            cfg.setup_api_with_callbacks_cache_list(std::ptr::null(), quorum_public_key_callback, data_contract_callback, data_contract_cache.clone(), vec![evonode]).await
         } else {
             // use Dash Core for quorum public keys
             cfg.setup_api_list(vec![evonode]).await
@@ -171,8 +199,8 @@ pub fn create_dash_sdk_using_single_evonode(
             context_provider_context: std::ptr::null(),
             data_contract_cache: data_contract_cache,
             request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
+                connect_timeout: Some(Duration::from_secs(5)),
+                timeout: Some(Duration::from_secs(5)),
                 retries: Some(0),
                 ban_failed_address: Some(false),
             }
@@ -187,7 +215,7 @@ pub fn destroy_dash_sdk(rust_sdk: * mut DashSdk) {
 
 #[test]
 fn test_dash_sdk() {
-    let my_sdk = create_dash_sdk(0, 0);
+    let my_sdk = create_dash_sdk_using_core_testnet();
     let my_boxed_sdk = boxed(my_sdk);
     destroy_dash_sdk(my_boxed_sdk);
 }

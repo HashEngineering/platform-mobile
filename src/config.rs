@@ -153,6 +153,53 @@ impl Config {
         config
     }
 
+    pub fn new_testnet() -> Self {
+        // load config from .env file, ignore errors
+
+        let path: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/testnet.env";
+        if let Err(err) = dotenvy::from_path(&path) {
+            tracing::warn!(path, ?err, "failed to load config file");
+        }
+
+        let mut config: Self = envy::prefixed(Self::CONFIG_PREFIX)
+            .from_env()
+            .expect("configuration error");
+
+        if config.is_empty() {
+            tracing::warn!(path, ?config, "some config fields are empty");
+            config.platform_host = "54.213.204.85".to_string();
+            config.platform_port = 1443;
+            config.core_port = 19998;
+            config.platform_ssl = true;
+            config.is_testnet = true;
+        }
+
+        config
+    }
+
+    pub fn new_mainnet() -> Self {
+        // load config from .env file, ignore errors
+
+        let path: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/mainnet.env";
+        if let Err(err) = dotenvy::from_path(&path) {
+            tracing::warn!(path, ?err, "failed to load config file");
+        }
+
+        let mut config: Self = envy::prefixed(Self::CONFIG_PREFIX)
+            .from_env()
+            .expect("configuration error");
+
+        if config.is_empty() {
+            tracing::warn!(path, ?config, "some config fields are empty");
+            config.platform_host = "44.239.39.153".to_string();
+            config.platform_port = 443;
+            config.core_port = 9998;
+            config.platform_ssl = true
+        }
+        config.is_testnet = false;
+        config
+    }
+
     /// Check if credentials of the config are empty.
     ///
     /// Checks if fields [platform_host](Config::platform_host), [platform_port](Config::platform_port),
@@ -194,9 +241,11 @@ impl Config {
     }
 
     pub fn new_address_list(&self, address_list: Vec<String>) -> AddressList {
+        tracing::info!("new_address_list: {}", address_list.len());
         let scheme = if self.platform_ssl { "https" } else { "http" };
         let uris: Vec<Uri> = address_list.into_iter().map(|host| {
             let uri = format!("{}://{}:{}", scheme, host, self.platform_port);
+            tracing::info!("new_address: {}", host);
             Uri::from_str(&uri).expect("valid address list")
         }).collect();
 
@@ -293,13 +342,14 @@ impl Config {
 
     pub async fn setup_api_with_callbacks_cache_list(
         &self,
+        context: * const c_void,
         q: u64,
         d: u64,
         data_contract_cache: Arc<Cache<Identifier, DataContract>>,
         address_list: Vec<String>
     ) -> Arc<Sdk> {
         let mut context_provider = CallbackContextProvider::new(
-            std::ptr::null(),
+            context,
             q,
             d,
             None,
