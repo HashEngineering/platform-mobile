@@ -1,3 +1,4 @@
+use std::panic;
 #[cfg(target_os = "android")]
 use tracing::{Event, Subscriber};
 #[cfg(target_os = "android")]
@@ -70,6 +71,7 @@ pub fn setup_logs() {
         }
         LOGS_SETUP = true;
     }
+
     let env_filter = match tracing_subscriber::EnvFilter::try_from_default_env() {
         Ok(filter) => filter,
         Err(e) => {
@@ -92,6 +94,8 @@ pub fn setup_logs() {
     if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
         crate::logs::android_log_message("platform-mobile", &*format!("Unable to set global default subscriber: {}", e));
     }
+
+    setup_panic_hook();
 }
 
 #[cfg(not(target_os = "android"))]
@@ -105,4 +109,20 @@ pub fn setup_logs() {
         .with_writer(std::io::stdout)
         .try_init()
         .ok();
+
+    setup_panic_hook();
+}
+
+fn setup_panic_hook() {
+    panic::set_hook(Box::new(|panic_info| {
+        tracing::warn!("Panic occurred: {:?}", panic_info);
+
+        if let Some(panic_msg) = panic_info.payload().downcast_ref::<&str>() {
+            tracing::info!("Thread panicked with message: {}", panic_msg);
+        } else if let Some(panic_msg) = panic_info.payload().downcast_ref::<String>() {
+            tracing::info!("Thread panicked with message: {}", panic_msg);
+        } else {
+            tracing::info!("Thread panicked with unknown type.");
+        }
+    }));
 }
