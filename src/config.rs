@@ -76,6 +76,16 @@ pub const ADDRESS_LIST: [&str; 32] = [
 ];
 
 
+pub const MAINNET_ADDRESS_LIST: [&str; 165] =  ["149.28.241.190", "216.238.75.46", "134.255.182.186", "66.245.196.52", "178.157.91.186", "157.66.81.162", "147.135.199.138", "213.199.34.250", "43.167.240.39", "178.157.91.176", "157.90.238.161", "5.182.33.231", "185.198.234.68", "37.60.236.212", "49.12.233.191", "207.244.247.40", "195.201.34.10", "45.32.70.131", "158.220.122.76", "52.33.9.172", "185.158.107.124", "185.198.234.17", "93.190.140.101", "194.163.153.225", "194.146.13.7", "93.190.140.112", "75.119.132.2", "65.108.74.95", "44.240.99.214", "5.75.133.148", "78.47.86.233", "192.248.178.237", "95.179.159.65", "139.84.232.129", "37.60.243.119", "194.195.87.34", "46.254.241.7", "45.77.77.195", "65.108.246.145", "64.176.10.71", "158.247.247.241", "37.60.244.220", "2.58.82.231", "139.180.143.115", "185.198.234.54", "213.199.44.112", "37.27.67.154", "134.255.182.185", "86.107.168.28", "139.84.137.143", "173.212.239.124", "157.10.199.77", "5.189.186.78", "139.84.170.10", "173.249.53.139", "37.60.236.151", "37.27.67.159", "104.200.24.196", "37.60.236.225", "172.104.90.249", "57.128.212.163", "37.60.236.249", "158.220.122.74", "185.198.234.25", "148.113.201.221", "134.255.183.250", "185.192.96.70", "134.255.183.248", "52.36.102.91", "134.255.183.247", "49.13.28.255", "168.119.102.10", "86.107.168.44", "49.13.237.193", "37.27.83.17", "37.27.28.6", "134.255.182.187", "142.132.165.149", "193.203.15.209", "38.242.198.100", "192.175.127.198", "37.27.67.163", "79.137.71.84", "51.68.155.64", "198.7.115.43", "70.34.206.123", "65.108.74.78", "108.61.165.170", "157.10.199.79", "31.220.88.116", "185.166.217.154", "37.27.67.164", "31.220.85.180", "161.97.170.251", "157.10.199.82", "91.107.226.241", "167.88.169.16", "216.238.99.9", "62.169.17.112", "52.10.213.198", "149.28.201.164", "198.7.115.38", "37.60.236.161", "49.13.193.251", "46.254.241.9", "65.108.74.75", "192.99.44.64", "95.179.241.182", "95.216.146.18", "185.194.216.84", "31.220.84.93", "185.197.250.227", "149.28.247.165", "86.107.168.29", "213.199.34.251", "108.160.135.149", "185.198.234.12", "45.32.52.10", "91.107.204.136", "64.176.35.235", "167.179.90.255", "157.66.81.130", "157.10.199.125", "146.59.6.50", "46.254.241.8", "49.12.102.105", "134.255.182.189", "81.17.101.141", "65.108.74.79", "64.23.134.67", "54.69.95.118", "158.220.122.13", "49.13.154.121", "75.119.149.9", "93.190.140.111", "93.190.140.114", "195.201.238.55", "135.181.110.216", "45.76.141.74", "65.21.145.147", "50.116.28.103", "188.245.90.255", "130.162.233.186", "65.109.65.126", "188.208.196.183", "178.157.91.184", "37.60.236.201", "95.179.139.125", "213.199.34.248", "178.157.91.178", "213.199.35.18", "213.199.35.6", "37.60.243.59", "37.27.67.156", "37.60.236.247", "159.69.204.162", "46.254.241.11", "173.199.71.83", "159.69.42.14", "185.215.166.126", "91.234.35.132", "157.66.81.218", "213.199.35.15", "93.190.140.162", "65.108.74.109"];
+#[ferment_macro::export]
+pub fn testnet_address_list() -> Vec<String> {
+    TESTNET_ADDRESS_LIST.iter().map(|&s| s.to_string()).collect()
+}
+
+pub fn mainnet_address_list() -> Vec<String> {
+    MAINNET_ADDRESS_LIST.iter().map(|&s| s.to_string()).collect()
+}
+
 
 /// Configuration for dash-platform-sdk.
 ///
@@ -134,11 +144,6 @@ pub struct Config {
     pub existing_document_id: Identifier,
 }
 
-// #[ferment_macro::opaque]
-// pub trait EntryPoint2 {
-//
-// }
-//#[ferment_macro::opaque]
 pub trait EntryPoint {
     fn get_runtime(&self) -> Arc<Runtime>;
     fn get_sdk(&self) -> Arc<Sdk>;
@@ -146,94 +151,6 @@ pub trait EntryPoint {
     fn add_data_contract(&mut self, data_contract: &DataContract);
     fn get_request_settings(&self) -> RequestSettings;
 }
-
-
-
-
-
-// should this be exported as Arc<> by the functions?
-// #[ferment_macro::opaque]
-// pub struct RustSdk {
-//     pub entry_point: Box<dyn EntryPoint>
-// }
-//
-// impl RustSdk {
-//     fn get_runtime(self) -> Arc<Runtime> {
-//         self.entry_point.get_runtime()
-//     }
-//     fn get_sdk(self) -> Arc<Sdk> {
-//         self.entry_point.get_sdk()
-//     }
-//
-//     pub fn get_data_contract(&self, identifier: &Identifier) -> Option<Arc<DataContract>> {
-//         self.entry_point.get_data_contract(identifier)
-//     }
-//
-//     pub fn add_data_contract(&mut self, data_contract: &DataContract) {
-//         self.entry_point.set_data_contract(data_contract)
-//     }
-//
-//     pub fn get_request_settings(&self) -> RequestSettings {
-//         self.entry_point.get_request_settings()
-//     }
-// }
-
-// #[ferment_macro::opaque]
-// pub struct RustSdk2 {
-//     pub entry_point: Box<dyn EntryPoint2>
-// }
-
-
-//
-// #[ferment_macro::opaque]
-// pub struct RustSdk3 {
-//     pub entry_point: Box<DashSdk>
-// }
-
-// #[ferment_macro::opaque]
-// pub struct RustSdk4 {
-//     pub entry_point: * mut DashSdk
-// }
-
-//#[ferment_macro::opaque]
-// pub struct DashSharedCoreWithRuntime {
-//     pub sdk: *mut Sdk,
-//     pub runtime: *mut Runtime,
-// }
-
-//#[ferment_macro::export]
-// impl DashSharedCoreWithRuntime {
-//     pub fn new(quorum_public_key_callback: u64, data_contract_callback: u64) -> Self {
-//         setup_logs();
-//         let rt =
-//             Builder::new_current_thread()
-//                 .enable_all() // Enables all I/O and time drivers
-//                 .build()
-//                 .expect("Failed to create a runtime");
-//
-//         // Execute the async block using the Tokio runtime
-//         rt.block_on(async {
-//             let cfg = Config::new();
-//             let sdk = if quorum_public_key_callback != 0 {
-//                 // use the callbacks to obtain quorum public keys
-//                 cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
-//             } else {
-//                 // use Dash Core for quorum public keys
-//                 cfg.setup_api().await
-//             };
-//
-//             let rt = Builder::new_current_thread()
-//                     .enable_all() // Enables all I/O and time drivers
-//                     .build()
-//                     .expect("Failed to create a runtime");
-//             Self {
-//                 sdk: boxed(sdk.as_ref().clone()),
-//                 runtime: boxed(rt)
-//             }
-//         })
-//     }
-// }
-
 
 impl Config {
     /// Prefix of configuration options in the environment variables and `.env` file.
@@ -463,236 +380,5 @@ impl Config {
             .join("vectors")
     }
 }
-
-// #[ferment_macro::export]
-// pub fn create_dashsharedcore(quorum_public_key_callback: u64,
-//                   data_contract_callback: u64) -> DashSharedCore {
-//     return DashSharedCore::new(std::ptr::null())
-// }
-
-// #[ferment_macro::export]
-// pub fn create_sdk(
-//     quorum_public_key_callback: u64,
-//     data_contract_callback: u64
-// ) -> RustSdk {
-//     setup_logs();
-//     let rt = Arc::new(
-//         Builder::new_multi_thread()
-//         .enable_all() // Enables all I/O and time drivers
-//         .build()
-//         .expect("Failed to create a runtime")
-//     );
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let cfg = Config::new();
-//         tracing::info!("cfg created");
-//         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
-//         let sdk = if quorum_public_key_callback != 0 {
-//             // use the callbacks to obtain quorum public keys
-//             cfg.setup_api_with_callbacks_cache(quorum_public_key_callback, data_contract_callback, data_contract_cache.clone()).await
-//         } else {
-//             // use Dash Core for quorum public keys
-//             cfg.setup_api().await
-//         };
-//         tracing::info!("sdk created");
-//         RustSdk {
-//             entry_point: Box::new(DashSdk {
-//                 config: Arc::new(cfg),
-//                 runtime: rt.clone(),
-//                 sdk: sdk,
-//                 data_contract_cache: data_contract_cache,
-//                 request_settings: RequestSettings {
-//                     connect_timeout: None,
-//                     timeout: None,
-//                     retries: Some(5),
-//                     ban_failed_address: Some(true),
-//                 }
-//             }
-//             )
-//         }
-//     })
-// }
-//
-//
-//
-// pub fn destroy_sdk(rust_sdk: * mut RustSdk) {
-//     unsafe  { unbox_any(rust_sdk) };
-// }
-
-
-// #[ferment_macro::export]
-// pub fn create_sdk2(
-//     quorum_public_key_callback: u64,
-//     data_contract_callback: u64
-// ) -> RustSdk2 {
-//     setup_logs();
-//     let rt = Arc::new(
-//         Builder::new_current_thread()
-//             .enable_all() // Enables all I/O and time drivers
-//             .build()
-//             .expect("Failed to create a runtime")
-//     );
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let cfg = Config::new();
-//         let sdk = if quorum_public_key_callback != 0 {
-//             // use the callbacks to obtain quorum public keys
-//             cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
-//         } else {
-//             // use Dash Core for quorum public keys
-//             cfg.setup_api().await
-//         };
-//         RustSdk2 {
-//             entry_point: Box::new(DashSdk {
-//                 config: cfg,
-//                 runtime: rt.clone(),
-//                 sdk: sdk
-//             })
-//         }
-//     })
-// }
-
-// #[ferment_macro::export]
-// pub fn create_sdk5(
-//     quorum_public_key_callback: u64,
-//     data_contract_callback: u64
-// ) -> RustSdk5 {
-//     setup_logs();
-//     let rt = Arc::new(
-//         Builder::new_current_thread()
-//             .enable_all() // Enables all I/O and time drivers
-//             .build()
-//             .expect("Failed to create a runtime")
-//     );
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let cfg = Config::new();
-//         let sdk = if quorum_public_key_callback != 0 {
-//             // use the callbacks to obtain quorum public keys
-//             cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await
-//         } else {
-//             // use Dash Core for quorum public keys
-//             cfg.setup_api().await
-//         };
-//         RustSdk5 {
-//             entry_point: Box::into_raw(Box::new(DashSdk {
-//                 config: cfg,
-//                 runtime: rt.clone(),
-//                 sdk: sdk
-//             })) as * mut c_void
-//         }
-//     })
-// }
-
-// #[ferment_macro::export]
-// #[derive(Clone, Debug)]
-// pub struct RustSdk {
-//     // pub sdk_pointer: *const c_void,
-//     // pub runtime: *const c_void
-//     pub sdk_pointer: u64,
-//     pub runtime: u64
-// }
-//
-// #[ferment_macro::export]
-// pub fn create_rust_sdk(
-//     quorum_public_key_callback: u64,
-//     data_contract_callback: u64
-// ) -> Arc<RustSdk> {
-//     let rt = Builder::new_current_thread()
-//         .enable_all() // Enables all I/O and time drivers
-//         .build()
-//         .expect("Failed to create a runtime");
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let cfg = Config::new();
-//         let sdk = cfg.setup_api_with_callbacks(quorum_public_key_callback, data_contract_callback).await;
-//
-//         let rt = Builder::new_current_thread()
-//             .enable_all() // Enables all I/O and time drivers
-//             .build()
-//             .expect("Failed to create a runtime");
-//
-//         let rust_sdk = Arc::new(RustSdk {
-//             // sdk_pointer: Arc::into_raw(sdk) as *const c_void,
-//             // runtime: Arc::into_raw(Arc::new(rt)) as *const c_void
-//             sdk_pointer: Arc::into_raw(sdk) as u64,
-//             runtime: Arc::into_raw(Arc::new(rt)) as u64
-//         });
-//         tracing::warn!("after creating sdk: {:?}", rust_sdk);
-//         return rust_sdk.into()
-//     })
-// }
-//
-// #[ferment_macro::export]
-// pub fn destroy_rust_sdk(rust_sdk: Arc<RustSdk>) {
-//     let ptr = rust_sdk.sdk_pointer as *mut Arc<Sdk>;
-//     if !ptr.is_null() {
-//         unsafe {
-//             Box::from_raw(ptr);
-//         }
-//     }
-//     let ptr2 = rust_sdk.runtime as *mut Arc<Runtime>;
-//     if !ptr2.is_null() {
-//         unsafe {
-//             Box::from_raw(ptr2);
-//         }
-//     }
-// }
-
-// #[ferment_macro::opaque]
-// pub type BlockHashByHeight = unsafe extern "C" fn(u32) -> [u8; 32];
-
-// #[ferment_macro::opaque]
-// pub struct FFICoreProvider {
-//     pub block_hash_by_height: BlockHashByHeight,
-// }
-//
-// impl CoreProvider for FFICoreProvider {
-//     fn get_block_hash_by_height(&self, _height: u32) -> [u8; 32] {
-//         [0u8; 32]
-//         // (self.block_hash_by_height)(height)
-//     }
-// }
-//
-// #[ferment_macro::opaque]
-// pub trait CoreProvider {
-//     fn get_block_hash_by_height(&self, height: u32) -> [u8; 32];
-// }
-// #[ferment_macro::opaque]
-// pub struct DashSharedCore {
-//     pub processor: *mut Processor,
-//     pub cache: BTreeMap<String, String>,
-//     pub context: *const std::os::raw::c_void,
-// }
-//
-// #[ferment_macro::opaque]
-// impl DashSharedCore {
-//     pub fn new(
-//         context: *const std::os::raw::c_void) -> Self {
-//         Self {
-//             processor: boxed(Processor { chain_id: Box::new(Config::new()) }),
-//             cache: Default::default(),
-//             context
-//         }
-//     }
-// }
-//
-// #[ferment_macro::opaque]
-// pub struct Processor {
-//     pub chain_id: Box<dyn MyConfig>,
-// }
-
-
-
-// #[test]
-// fn test_rust_sdk() {
-//     let my_sdk = create_sdk(0, 0);
-//     let my_boxed_sdk = boxed(my_sdk);
-//     destroy_sdk(my_boxed_sdk);
-// }
 
 
