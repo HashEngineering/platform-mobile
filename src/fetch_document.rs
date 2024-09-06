@@ -10,9 +10,9 @@ use dpp::document::{Document, DocumentV0Getters};
 use drive::query::{ordering::OrderClause, conditions::WhereClause, conditions::WhereOperator};
 use platform_value::{types::identifier::Identifier, IdentifierBytes32, Value};
 use tokio::runtime::{Builder, Runtime};
-use crate::config::{Config, DPNS_DATACONTRACT_ID, EntryPoint};
+use crate::config::{Config, EntryPoint};
 use crate::logs::setup_logs;
-use crate::sdk::{create_dash_sdk, create_dash_sdk_using_single_evonode};
+use crate::sdk::{create_dash_sdk_using_core_testnet, create_dash_sdk_using_single_evonode};
 use crate::sdk::DashSdk;
 use dash_sdk::Error;
 use drive_proof_verifier::types::Documents;
@@ -919,8 +919,8 @@ fn docs_query_id_test() {
 
 #[test]
 fn docs_full_query_sdk_test() {
-    let mut sdk = create_dash_sdk(0, 0);
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
             &mut sdk,
@@ -947,8 +947,8 @@ fn docs_full_query_sdk_test() {
 
 #[test]
 fn docs_full_query_sdk2_test() {
-    let mut sdk = create_dash_sdk(0, 0);
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk2(
             &mut sdk,
@@ -975,8 +975,8 @@ fn docs_full_query_sdk2_test() {
 
 #[test]
 fn docs_startswith_query_sdk_test() {
-    let mut sdk = create_dash_sdk(0, 0);
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
             &mut sdk,
@@ -1009,7 +1009,7 @@ fn docs_startswith_query_sdk_test() {
 #[test]
 fn docs_startswith_query_sdk_using_single_node_test() {
     let mut sdk = create_dash_sdk_using_single_evonode("35.163.144.230".into(),0, 0);
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
             &mut sdk,
@@ -1041,8 +1041,8 @@ fn docs_startswith_query_sdk_using_single_node_test() {
 
 #[test]
 fn docs_domain_query_sort_test() {
-    let mut sdk = create_dash_sdk(0, 0);
-    let contract_id = Identifier(IdentifierBytes32(DPNS_DATACONTRACT_ID));
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
     let docs_result = unsafe {
         fetch_documents_with_query_and_sdk(
             &mut sdk,
@@ -1078,14 +1078,14 @@ fn docs_domain_query_sort_test() {
 
 #[test]
 fn doc_deserialization_sdk_test() {
-    let mut sdk = create_dash_sdk(0, 0);
+    let mut sdk = create_dash_sdk_using_core_testnet();
 
     unsafe {
         println!(
             "{:?}", deserialize_document_sdk(
                 &mut sdk,
                 base64::decode("AGH4+kYLEEVx5P49R8qys8mejGccoym8xP537nFJKG1MyrTwEVcAzOVfnNN0jDdMkpGXzPCKainEbQEMSu+PuQcBAAcAAAGRXbiwhAAAAZFduLCEAAABkV24sIQABnRlc3QxMQZ0ZXN0MTEBBGRhc2gEZGFzaAAhAcq08BFXAMzlX5zTdIw3TJKRl8zwimopxG0BDErvj7kHAQA=").unwrap(),
-                Identifier::from_bytes(&DPNS_DATACONTRACT_ID).unwrap(),
+                Identifier::from(dpns_contract::ID_BYTES),
                 "domain".into()
             ).unwrap()
         );
