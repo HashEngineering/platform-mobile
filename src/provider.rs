@@ -2,6 +2,8 @@
 
 use std::hash::Hash;
 use std::num::NonZeroUsize;
+use std::os::raw::c_void;
+use std::ptr::null;
 use std::sync::Arc;
 use std::thread;
 use dapi_grpc::tonic::codegen::Body;
@@ -13,6 +15,7 @@ use drive_proof_verifier::ContextProvider;
 use platform_value::converter::serde_json;
 use dash_sdk::platform::Fetch;
 use dash_sdk::{Sdk, Error};
+use dpp::identity::IdentityPublicKey;
 use dpp::prelude::CoreBlockHeight;
 use platform_value::types::binary_data::BinaryData;
 use tokio::runtime::{Handle, Runtime};
@@ -21,23 +24,8 @@ use crate::config::Config;
 
 // not supported
 
-#[ferment_macro::opaque]
-pub type QuorumPublicKeyCallbackExport = unsafe extern "C" fn(quorum_type: u32, quorum_hash: [u8; 32], core_chain_locked_height: u32) -> [u8; 96];
-
-// not supported
-// #[ferment_macro::opaque]
-// pub type QuorumPublicKeyCallbackExport2 = extern "C" fn(quorum_type: u32, quorum_hash: Vec<u8>, core_chain_locked_height: u32) -> Vec<u8>;
-
-#[ferment_macro::opaque]
-pub type QuorumPublicKeyCallbackExport3 = unsafe extern "C" fn(quorum_type: u32, quorum_hash: BinaryData, core_chain_locked_height: u32) -> BinaryData;
-
-// #[ferment_macro::export]
-// pub fn set_callback(c1: QuorumPublicKeyCallbackExport) {
-//
-// }
-
 // not supported with ferment
-type QuorumPublicKeyCallback = extern "C" fn(quorum_type: u32, quorum_hash: *const u8, core_chain_locked_height: u32, result: * mut u8);
+type QuorumPublicKeyCallback = extern "C" fn(context: * const c_void, quorum_type: u32, quorum_hash: *const u8, core_chain_locked_height: u32, result: * mut u8);
 
 //#[ferment_macro::export]
 type DataContractCallback = extern "C" fn(id: &Identifier) -> DataContract;
@@ -47,6 +35,7 @@ type DataContractCallback = extern "C" fn(id: &Identifier) -> DataContract;
 /// Example [ContextProvider] used by the Sdk for testing purposes.
 ///
 pub struct CallbackContextProvider {
+    pub context: * const c_void,
     pub quorum_public_key_callback: QuorumPublicKeyCallback,
     pub data_contract_callback: DataContractCallback,
     /// [Sdk] to use when fetching data from Platform
@@ -84,6 +73,7 @@ impl CallbackContextProvider {
     ///
     /// Sdk can be set later with [`CallbackContextProvider::set_sdk`].
     pub fn new(
+        context: * const c_void,
         quorum_public_key_callback: u64,
         data_contract_callback: u64,
         sdk: Option<Arc<Sdk>>,
@@ -91,9 +81,10 @@ impl CallbackContextProvider {
         quorum_public_keys_cache_size: NonZeroUsize,
     ) -> Result<Self, Error> {
         unsafe {
-            let callback1: QuorumPublicKeyCallback = std::mem::transmute(quorum_public_key_callback);
-            let callback2: DataContractCallback = std::mem::transmute(data_contract_callback);
+            let callback1: QuorumPublicKeyCallback = std::mem::transmute(quorum_public_key_callback as usize);
+            let callback2: DataContractCallback = std::mem::transmute(data_contract_callback as usize);
             Ok(Self {
+                context,
                 quorum_public_key_callback: callback1,
                 data_contract_callback: callback2,
                 sdk,
@@ -133,7 +124,7 @@ impl ContextProvider for CallbackContextProvider {
 
         let mut key: [u8; 48] = [0; 48]; // To store the result
 
-        (self.quorum_public_key_callback)(quorum_type, quorum_hash.as_ptr(), core_chain_locked_height, key.as_mut_ptr());
+        (self.quorum_public_key_callback)(self.context, quorum_type, quorum_hash.as_ptr(), core_chain_locked_height, key.as_mut_ptr());
         tracing::info!("get_quorum_public_key: returning {:?}", key);
 
         if key == [0; 48] {
@@ -152,13 +143,14 @@ impl ContextProvider for CallbackContextProvider {
         &self,
         data_contract_id: &Identifier,
     ) -> Result<Option<Arc<DataContract>>, ContextProviderError> {
-        if let Some(contract) = self.data_contracts_cache.get(data_contract_id) {
-            return Ok(Some(contract));
+        return if let Some(contract) = self.data_contracts_cache.get(data_contract_id) {
+            Ok(Some(contract))
         } else {
-            return Ok(None);
+            Ok(None)
         };
         // tracing::info!("CallbackContextProvider: {:p}", &self as *const _);
 
+        // on android, this gets stuck (deadlock)
         // let sdk = match &self.sdk {
         //     Some(sdk) => sdk,
         //     None => {
@@ -184,6 +176,10 @@ impl ContextProvider for CallbackContextProvider {
         Ok(1_000_000)
     }
 }
+
+unsafe impl Send for CallbackContextProvider {}
+unsafe impl Sync for CallbackContextProvider {}
+
 
 /// Thread-safe cache of various objects inside the SDK.
 ///
@@ -216,4 +212,26 @@ impl<K: Hash + Eq, V> Cache<K, V> {
     }
 }
 
-
+// #[ferment_macro::opaque]
+// pub struct PlatformSDK {
+//     context: * const std::os::raw::c_void
+// }
+//
+// #[ferment_macro::export]
+// impl PlatformSDK {
+//     pub fn new<
+//         QP: Fn(*const std::os::raw::c_void, u32, [u8; 32], u32) -> Result<[u8; 48], ContextProviderError> /*+ Send + Sync + 'static*/,
+//         //DC: Fn(*const std::os::raw::c_void, Identifier) -> Result<Option<Arc<DataContract>>, ContextProviderError> + Send + Sync + 'static,
+//         //CS: Fn(*const std::os::raw::c_void, IdentityPublicKey, Vec<u8>) -> Result<BinaryData, ProtocolError> + Send + Sync + 'static,
+//     >(
+//         get_quorum_public_key: QP,
+//         //get_data_contract: DC,
+//         //callback_signer: CS,
+//         //address_list: Option<Vec<&'static str>>,
+//         context: *const std::os::raw::c_void,
+//     ) -> Self {
+//         Self {
+//             context,
+//         }
+//     }
+// }

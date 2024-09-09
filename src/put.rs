@@ -6,7 +6,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use dash_sdk::{Error, RequestSettings, Sdk};
-use dash_sdk::platform::Fetch;
+use dash_sdk::platform::{DocumentQuery, Fetch};
 use dash_sdk::platform::transition::put_document::PutDocument;
 use dash_sdk::platform::transition::put_identity::PutIdentity;
 use dash_sdk::platform::transition::put_settings::PutSettings;
@@ -56,10 +56,14 @@ use crate::provider::Cache;
 use dapi_grpc::platform::v0::{StateTransitionBroadcastError, WaitForStateTransitionResultResponse};
 use dapi_grpc::platform::v0::wait_for_state_transition_result_response::{Version, wait_for_state_transition_result_response_v0};
 use dash_sdk::platform::transition::top_up_identity::TopUpIdentity;
+use dpp::data_contract::document_type::accessors::DocumentTypeV0Getters;
 use dpp::state_transition::StateTransition;
 use crate::sdk::DashSdk;
-
-//use dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0;
+use dpp::serialization::Signable;
+use dpp::serialization::PlatformSerializable;
+use drive_proof_verifier::types::Documents;
+use rs_dapi_client::transport::BoxFuture;
+use dash_sdk::platform::transition::replace_document::ReplaceDocument;
 pub fn get_wait_result_error(response: &WaitForStateTransitionResultResponse) -> Option<&StateTransitionBroadcastError> {
     match &response.version {
         Some(dapi_grpc::platform::v0::wait_for_state_transition_result_response::Version::V0(response_v0)) => {
@@ -77,7 +81,7 @@ pub async fn wait_for_response_concurrent(
     new_preorder_document: &Document,
     sdk: &Sdk,
     preorder_transition: StateTransition,
-    data_contract: DataContract,
+    data_contract: Arc<DataContract>,
     settings: PutSettings
 ) -> Result<Document, dash_sdk::Error> {
     let mut handles = vec![];
@@ -86,7 +90,7 @@ pub async fn wait_for_response_concurrent(
         let new_preorder_document = new_preorder_document.clone();
         let sdk = sdk.clone();
         let preorder_transition = preorder_transition.clone();
-        let data_contract = Arc::new(data_contract.clone());
+        let data_contract = data_contract.clone();
         let settings = Some(settings.clone());
 
         tracing::info!("spawning thread {} of 5", i + 1);
@@ -184,12 +188,6 @@ pub async fn wait_for_response_concurrent_identity(
 //#[ferment_macro::export]
 pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
 
-// #[ferment_macro::export]
-// pub type SignerCallback2 = fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
-// #[ferment_macro::export]
-// pub type SignerCallback3 = extern "C" fn(key: Vec<u8>, data: Vec<u8>, result: Vec<u8>) -> u32;
-//#[ferment_macro::export]
-//type SignerCallback = extern "C" fn(identity_public_key: * const u8, data: * const u8) -> * const u8;
 #[derive(Debug)]
 pub struct CallbackSigner {
     signer_callback: SignerCallback
@@ -200,7 +198,7 @@ impl CallbackSigner {
         signer_callback: u64,
     ) -> Result<Self, Error> {
         unsafe {
-            let callback: SignerCallback = std::mem::transmute(signer_callback);
+            let callback: SignerCallback = std::mem::transmute(signer_callback as usize);
             Ok(Self {
                 signer_callback: callback
             })
@@ -235,17 +233,6 @@ impl Signer for CallbackSigner {
     }
 }
 
-#[ferment_macro::export]
-pub fn put_identity_create(identity: Identity, signer_callback: u64) -> Identity {
-    let signer = CallbackSigner::new(signer_callback).expect("signer not valid");
-    let data = [0u8; 1024];
-    match signer.sign(&IdentityPublicKey::random_authentication_key(1, None, PlatformVersion::latest()), data.as_slice()) {
-        Ok(sig) => tracing::info!("signature: {:?}", sig),
-        Err(e) => tracing::info!("signature error: {}", e)
-    }
-    identity
-}
-
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 #[ferment_macro::export]
 pub struct OutPointFFI {
@@ -254,12 +241,6 @@ pub struct OutPointFFI {
     /// The index of the referenced output in its transaction's vout.
     pub vout: u32,
 }
-//
-// #[allow(non_snake_case)]
-// #[ferment_macro::export]
-// pub fn OutPointFFI_clone(a: OutPointFFI) -> OutPointFFI {
-//     a.clone()
-// }
 
 #[allow(non_snake_case)]
 #[ferment_macro::export]
@@ -363,83 +344,6 @@ impl From<AssetLockProofFFI> for AssetLockProof {
     }
 }
 
-// TODO: deprecate
-#[ferment_macro::export]
-pub fn put_identity(
-    identity: Identity,
-    asset_lock_proof: AssetLockProofFFI,
-    asset_lock_proof_private_key: Vec<u8>,
-    signer_callback: u64,
-    q: u64,
-    d: u64,
-    is_testnet: bool
-) -> Result<Identity, String> {
-    setup_logs();
-
-    // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        // Your async code here
-        let cfg = Config::new();
-        trace!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(q, d).await;
-        trace!("Finished SDK, {:?}", sdk);
-        trace!("Set up network, private key and signer");
-
-        let network = if is_testnet {
-            Network::Testnet
-        } else {
-            Network::Dash
-        };
-        let private_key = match PrivateKey::from_slice(asset_lock_proof_private_key.as_slice(), network) {
-            Ok(pk) => pk,
-            Err(e) => return Err(e.to_string())
-        };
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
-
-        trace!("Call Identity::put_to_platform_and_wait_for_response");
-        // TODO: this needs to be split up and call wait 5x
-        // let identity_result = Identity::put_to_platform_and_wait_for_response(
-        //     &identity,
-        //     &sdk,
-        //     asset_lock_proof.into(),
-        //     &private_key,
-        //     &signer).await;
-
-        let state_transition_result = Identity::put_to_platform(
-            &identity,
-            &sdk,
-            asset_lock_proof.into(),
-            &private_key,
-            &signer,
-            RequestSettings::default()
-        ).await;
-
-        let state_transition = match state_transition_result {
-            Ok(st) => st,
-            Err(err) => return Err(err.to_string())
-        };
-
-        let identity_result = wait_for_response_concurrent_identity(
-            &identity,
-            &sdk,
-            &state_transition
-        ).await;
-
-        return match identity_result {
-            Ok(identity) => Ok(identity),
-            Err(e) => Err(e.to_string())
-        }
-
-    })
-}
-
 #[ferment_macro::export]
 pub fn put_identity_sdk(
     rust_sdk: *mut DashSdk,
@@ -471,7 +375,17 @@ pub fn put_identity_sdk(
         };
         let signer = CallbackSigner::new(signer_callback).expect("signer");
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
-        trace!("Call Identity::put_to_platform_and_wait_for_response");
+        tracing::info!("Call Identity::put_to_platform_and_wait_for_response");
+
+        let asset_lock_proof: AssetLockProof = asset_lock_proof.into();
+        // this PR has not been merged yet, but there is a way to detect if the put_identity will fail
+        // match asset_lock_proof.verify(&sdk) {
+        //     Ok(_) => {},
+        //     Err(error) => {
+        //         return Err(error.to_string())
+        //     }
+        // }
+
         let state_transition_result = Identity::put_to_platform(
             &identity,
             &sdk,
@@ -485,6 +399,9 @@ pub fn put_identity_sdk(
             Ok(st) => st,
             Err(err) => return Err(err.to_string())
         };
+
+        tracing::info!("state transition (signable): {}", hex::encode(state_transition.signable_bytes().unwrap()));
+        tracing::info!("state transition (serialized): {}", hex::encode(state_transition.serialize_to_bytes().unwrap()));
 
         let identity_result = wait_for_response_concurrent_identity(
             &identity,
@@ -547,95 +464,48 @@ pub fn topup_identity_sdk(
     })
 }
 
-// TODO: deprecate
-#[ferment_macro::export]
-pub fn put_document(
-    document: Document,
-    data_contract_id: Identifier,
-    document_type_str: String,
+fn put_document_with_retry(
+    sdk: Arc<Sdk>,
+    data_contract_cache: Arc<Cache<Identifier, DataContract>>,
+    new_document: Document,
+    document_type: DocumentType,
+    entropy: [u8; 32],
     identity_public_key: IdentityPublicKey,
-    block_height: BlockHeight,
-    core_block_height: CoreBlockHeight,
-    signer_callback: u64,
-    quorum_key_callback: u64,
-    d: u64
-) -> Result<Document, String> {
-
-    setup_logs();
-
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        // Your async code here
-        let cfg = Config::new();
-        trace!("Setting up SDK");
-        let sdk = if quorum_key_callback != 0 {
-            cfg.setup_api_with_callbacks(quorum_key_callback, d).await
-        } else {
-            cfg.setup_api().await
-        };
-        trace!("Finished SDK, {:?}", sdk);
-        trace!("Set up entropy, data contract and signer");
-
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
-        };
-
-        let document_type = data_contract
-            .document_type_for_name(&document_type_str)
-            .expect("expected a profile document type");
-
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
-        let entropy_generator = DefaultEntropyGenerator;
-        let entropy = entropy_generator.generate().unwrap();
-        //let document_entropy = entropy_generator.generate().unwrap();
-        trace!("document_entropy: {:?}", entropy);
-        trace!("IdentityPublicKey: {:?}", identity_public_key);
-
-        // recreate the document using the same entropy value as when it is submitted below
-        let new_document_result = document_type.create_document_from_data(
-            document.properties().into(),
-            document.owner_id(),
-            block_height,
-            core_block_height,
-            entropy,
-            PlatformVersion::latest()
-        );
-
-        let new_document = match new_document_result {
-            Ok(doc) => doc,
-            Err(e) => return Err(e.to_string())
-        };
-
-        let settings = PutSettings {
-            request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: None, //Some(2),
-                ban_failed_address: Some(true),
-            },
-            identity_nonce_stale_time_s: None,
-            user_fee_increase: None,
-        };
-
-        trace!("Call Document::put_to_platform_and_wait_for_response");
-        let document_result = new_document.put_to_platform_and_wait_for_response(
+    signer_callback: CallbackSigner,
+    put_settings: PutSettings,
+    retries_left: usize,
+) -> BoxFuture<'static, Result<StateTransition, Error>> {
+    Box::pin(async move {
+        match new_document.put_to_platform(
             &sdk,
-            document_type.to_owned_document_type(),
-            entropy,
-            identity_public_key,
-            Arc::new(data_contract),
-            &signer,
-            Some(settings)
-        ).await;
-
-        document_result.map_err(|err| err.to_string())
+            document_type.clone(),
+            entropy.clone(),
+            identity_public_key.clone(),
+            &signer_callback,
+            Some(put_settings)
+        ).await {
+            Ok(documents) => Ok(documents),
+            Err(error) => {
+                if retries_left > 1 {
+                    if error.to_string().contains("contract not found error") {
+                        if (data_contract_cache.get(&document_type.data_contract_id()) != None) {
+                            return put_document_with_retry(
+                                sdk,
+                                data_contract_cache,
+                                new_document,
+                                document_type,
+                                entropy,
+                                identity_public_key,
+                                signer_callback,
+                                put_settings,
+                                retries_left - 1
+                            ).await;
+                        }
+                    }
+                }
+                Err(error)
+            }
+        }
     })
 }
 
@@ -663,10 +533,20 @@ pub fn put_document_sdk(
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
+        let data_contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+                match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
+                    .await) {
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
         };
 
         let document_type = data_contract
@@ -703,25 +583,18 @@ pub fn put_document_sdk(
         };
 
         trace!("Call Document::put_to_platform_and_wait_for_response");
-        // let document_result = new_document.put_to_platform_and_wait_for_response(
-        //     &sdk,
-        //     document_type.to_owned_document_type(),
-        //     entropy,
-        //     identity_public_key,
-        //     Arc::new(data_contract),
-        //     &signer,
-        //     Some(settings)
-        // ).await;
-
-        // document_result.map_err(|err| err.to_string())
-
-        let transition = new_document.put_to_platform(
-            &sdk,
+        let data_contract_cache = unsafe {&(*rust_sdk).data_contract_cache.clone() };
+        let extra_retries = settings.request_settings.retries.unwrap_or_else(|| 5usize);
+        let transition = put_document_with_retry(
+            sdk.clone(),
+            data_contract_cache.clone(),
+            new_document.clone(),
             document_type.to_owned_document_type(),
             entropy.clone(),
             identity_public_key.clone(),
-            &signer,
-            Some(settings)
+            signer,
+            settings,
+            extra_retries
         ).await.or_else(|err|Err(err.to_string()))?;
 
         let result_document = wait_for_response_concurrent(
@@ -736,6 +609,48 @@ pub fn put_document_sdk(
     })
 }
 
+fn replace_document_with_retry(
+    sdk: Arc<Sdk>,
+    data_contract_cache: Arc<Cache<Identifier, DataContract>>,
+    new_document: Document,
+    document_type: DocumentType,
+    identity_public_key: IdentityPublicKey,
+    signer_callback: CallbackSigner,
+    put_settings: PutSettings,
+    retries_left: usize,
+) -> BoxFuture<'static, Result<StateTransition, Error>> {
+    Box::pin(async move {
+        match new_document.replace_on_platform(
+            &sdk,
+            document_type.clone(),
+            identity_public_key.clone(),
+            &signer_callback,
+            Some(put_settings)
+        ).await {
+            Ok(documents) => Ok(documents),
+            Err(error) => {
+                if retries_left > 1 {
+                    if error.to_string().contains("contract not found error") {
+                        if (data_contract_cache.get(&document_type.data_contract_id()) != None) {
+                            return replace_document_with_retry(
+                                sdk,
+                                data_contract_cache,
+                                new_document,
+                                document_type,
+                                identity_public_key,
+                                signer_callback,
+                                put_settings,
+                                retries_left - 1
+                            ).await;
+                        }
+                    }
+                }
+                Err(error)
+            }
+        }
+    })
+}
+
 #[ferment_macro::export]
 pub fn replace_document_sdk(
     rust_sdk: *mut DashSdk,
@@ -745,9 +660,7 @@ pub fn replace_document_sdk(
     identity_public_key: IdentityPublicKey,
     block_height: BlockHeight,
     core_block_height: CoreBlockHeight,
-    signer_callback: u64,
-    quorum_key_callback: u64,
-    d: u64
+    signer_callback: u64
 ) -> Result<Document, String> {
     let rt = unsafe { (*rust_sdk).get_runtime() };
 
@@ -761,10 +674,20 @@ pub fn replace_document_sdk(
         trace!("Finished SDK, {:?}", sdk);
         trace!("Set up entropy, data contract and signer");
 
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
+        let data_contract = match unsafe { (*rust_sdk).get_data_contract(&data_contract_id) } {
+            Some(data_contract) => data_contract.clone(),
+            None => {
+                let request_settings = unsafe { (*rust_sdk).get_request_settings() };
+                match (DataContract::fetch_with_settings(&sdk, data_contract_id.clone(), request_settings)
+                    .await) {
+                    Ok(Some(data_contract)) => {
+                        unsafe { (*rust_sdk).add_data_contract(&data_contract); };
+                        Arc::new(data_contract)
+                    },
+                    Ok(None) => return Err("data contract not found".to_string()),
+                    Err(e) => return Err(e.to_string())
+                }
+            }
         };
 
         let document_type = data_contract
@@ -783,113 +706,25 @@ pub fn replace_document_sdk(
         };
 
         trace!("Call Document::replace_on_platform_and_wait_for_response");
-        // TODO: add the concurrent wait function
-        let document_result = document.replace_on_platform_and_wait_for_response(
-            &sdk,
+
+        let data_contract_cache = unsafe {&(*rust_sdk).data_contract_cache.clone() };
+        let extra_retries = settings.request_settings.retries.unwrap_or_else(|| 5usize);
+        let transition = replace_document_with_retry(
+            sdk.clone(),
+            data_contract_cache.clone(),
+            document.clone(),
             document_type.to_owned_document_type(),
-            identity_public_key,
-            Arc::new(data_contract),
-            &signer,
-            Some(settings)
-        ).await;
-
-        document_result.map_err(|err| err.to_string())
-    })
-}
-
-#[ferment_macro::export]
-pub fn replace_document(
-    document: Document,
-    data_contract_id: Identifier,
-    document_type_str: String,
-    identity_public_key: IdentityPublicKey,
-    block_height: BlockHeight,
-    core_block_height: CoreBlockHeight,
-    signer_callback: u64,
-    quorum_key_callback: u64,
-    d: u64
-) -> Result<Document, String> {
-
-    setup_logs();
-    // Create a new Tokio runtime
-    //let rt = tokio::runtime::Runtime::new().expect("Failed to create a runtime");
-    let rt = Builder::new_current_thread()
-        .enable_all() // Enables all I/O and time drivers
-        .build()
-        .expect("Failed to create a runtime");
-
-    // Execute the async block using the Tokio runtime
-    rt.block_on(async {
-        // Your async code here
-        let cfg = Config::new();
-        trace!("Setting up SDK");
-        let sdk = cfg.setup_api_with_callbacks(quorum_key_callback, d).await;
-        trace!("Finished SDK, {:?}", sdk);
-        trace!("Set up entropy, data contract and signer");
-
-        let data_contract = match DataContract::fetch(&sdk, data_contract_id).await {
-            Ok(Some(contract)) => contract,
-            Ok(None) => return Err("no contract".to_string()),
-            Err(e) => return Err(e.to_string())
-        };
-
-        let document_type = data_contract
-            .document_type_for_name(&document_type_str)
-            .expect("expected a profile document type");
-
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
-
-        trace!("IdentityPublicKey: {:?}", identity_public_key);
-        //
-        // let new_document_result = document_type.create_document_with_prevalidated_properties(
-        //     document.id(),
-        //     document.owner_id(),
-        //     block_height,
-        //     core_block_height,
-        //     document.properties().clone(),
-        //     PlatformVersion::latest()
-        // );
-        //
-        // let new_document = match new_document_result {
-        //     Ok(doc) => doc,
-        //     Err(e) => return Err(e.to_string())
-        // };
-
-        let settings = PutSettings {
-            request_settings: RequestSettings {
-                connect_timeout: None,
-                timeout: None,
-                retries: Some(3),
-                ban_failed_address: Some(true),
-            },
-            identity_nonce_stale_time_s: None,
-            user_fee_increase: None,
-        };
-
-        trace!("Call Document::put_to_platform_and_wait_for_response");
-        // let document_result = document.replace_on_platform_and_wait_for_response(
-        //     &sdk,
-        //     document_type.to_owned_document_type(),
-        //     identity_public_key,
-        //     Arc::new(data_contract),
-        //     &signer,
-        //     Some(settings)
-        // ).await;
-
-        let transition = document.replace_on_platform(
-                &sdk,
-                document_type.to_owned_document_type(),
-                identity_public_key,
-                &signer,
-                Some(settings),
-            )
-            .await.or_else(|err|Err(err.to_string()))?;
+            identity_public_key.clone(),
+            signer,
+            settings,
+            extra_retries
+        ).await.or_else(|err|Err(err.to_string()))?;
 
         let result_document = wait_for_response_concurrent(
             &document,
             &sdk,
             transition.clone(),
-            data_contract.clone(),
+            data_contract,
             settings
         ).await.or_else(|err|Err(err.to_string()))?;
 
