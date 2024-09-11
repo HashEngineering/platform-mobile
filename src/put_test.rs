@@ -35,7 +35,7 @@ use crate::config::{Config, EntryPoint};
 use crate::logs::setup_logs;
 use crate::put::{get_wait_result_error, wait_for_response_concurrent};
 use dash_sdk::Error;
-use crate::sdk::create_dash_sdk;
+use crate::sdk::{create_dash_sdk_using_core_testnet};
 
 fn get_salted_domain_hash(
     pre_order_salt_raw: &[u8],
@@ -140,7 +140,7 @@ fn test_put_documents_for_username() {
         }
     );
 
-    let rust_sdk = create_dash_sdk(0, 0);
+    let mut rust_sdk = create_dash_sdk_using_core_testnet();
     let rt = unsafe { rust_sdk.get_runtime() };
 
 
@@ -153,7 +153,7 @@ fn test_put_documents_for_username() {
         tracing::warn!("Finished SDK, {:?}", sdk);
         tracing::warn!("Set up entropy, data contract and signer");
 
-        let data_contract =  DataContract::fetch(&sdk, cfg.existing_data_contract_id).await
+        let data_contract =  DataContract::fetch(&sdk, Identifier::from(dpns_contract::ID_BYTES)).await
             .expect("fetching data contract")
             .expect("data contract not found");
 
@@ -213,7 +213,7 @@ fn test_put_documents_for_username() {
             &new_preorder_document,
             &sdk,
             preorder_transition.clone(),
-            data_contract.clone(),
+            data_contract.clone().into(),
             settings
         ).await.or_else(|err|Err(ProtocolError::Generic(err.to_string())))?;
 
