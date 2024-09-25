@@ -42,6 +42,7 @@ pub fn put_vote_to_platform(
     vote: Vote,
     voter_pro_tx_hash: Identifier,
     voting_public_key: IdentityPublicKey,
+    signer_context: usize,
     signer_callback: u64
 ) -> Result<Vote, String> {
 
@@ -49,7 +50,7 @@ pub fn put_vote_to_platform(
     rt.block_on(async {
 
         let sdk = unsafe { (*rust_sdk).get_sdk() };
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let signer = CallbackSigner::new(signer_context, signer_callback).expect("signer");
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
 
         let settings = PutSettings {

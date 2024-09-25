@@ -186,21 +186,24 @@ pub async fn wait_for_response_concurrent_identity(
 }
 
 //#[ferment_macro::export]
-pub type SignerCallback = extern "C" fn(key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
+pub type SignerCallback = extern "C" fn(context: usize, key_data: * const u8, key_len: u32, data: * const u8, data_len: u32, result: * mut u8) -> u32;
 
 #[derive(Debug)]
 pub struct CallbackSigner {
-    signer_callback: SignerCallback
+    signer_callback: SignerCallback,
+    signer_context: usize
 }
 
 impl CallbackSigner {
     pub fn new(
+        signer_context: usize,
         signer_callback: u64,
     ) -> Result<Self, Error> {
         unsafe {
             let callback: SignerCallback = std::mem::transmute(signer_callback as usize);
             Ok(Self {
-                signer_callback: callback
+                signer_callback: callback,
+                signer_context: signer_context
             })
         }
     }
@@ -219,7 +222,7 @@ impl Signer for CallbackSigner {
         let key_data = identity_public_key.data();
         let mut result = [0u8; 128];
         trace!("CallbackSigner::sign({:?}, {:?})", key_data.as_slice(), data);
-        let length = (self.signer_callback)(key_data.as_slice().as_ptr(), key_data.len() as u32, data.as_ptr(), data.len() as u32, result.as_mut_ptr());
+        let length = (self.signer_callback)(self.signer_context, key_data.as_slice().as_ptr(), key_data.len() as u32, data.as_ptr(), data.len() as u32, result.as_mut_ptr());
 
         // Check the return value to determine if the operation was successful
         if length > 0 {
@@ -350,6 +353,7 @@ pub fn put_identity_sdk(
     identity: Identity,
     asset_lock_proof: AssetLockProofFFI,
     asset_lock_proof_private_key: Vec<u8>,
+    signer_context: usize,
     signer_callback: u64,
     is_testnet: bool
 ) -> Result<Identity, String> {
@@ -373,7 +377,7 @@ pub fn put_identity_sdk(
             Ok(pk) => pk,
             Err(e) => return Err(e.to_string())
         };
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let signer = CallbackSigner::new(signer_context, signer_callback).expect("signer");
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
         tracing::info!("Call Identity::put_to_platform_and_wait_for_response");
 
@@ -518,12 +522,11 @@ pub fn put_document_sdk(
     identity_public_key: IdentityPublicKey,
     block_height: BlockHeight,
     core_block_height: CoreBlockHeight,
+    signer_context: usize,
     signer_callback: u64
 ) -> Result<Document, String> {
 
     let rt = unsafe { (*rust_sdk).get_runtime() };
-
-    // Execute the async block using the Tokio runtime
     rt.block_on(async {
         // Your async code here
         let cfg = Config::new();
@@ -553,7 +556,7 @@ pub fn put_document_sdk(
             .document_type_for_name(&document_type_str)
             .expect("expected a profile document type");
 
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let signer = CallbackSigner::new(signer_context, signer_callback).expect("signer");
         let entropy_generator = DefaultEntropyGenerator;
         let entropy = entropy_generator.generate().unwrap();
         //let document_entropy = entropy_generator.generate().unwrap();
@@ -660,6 +663,7 @@ pub fn replace_document_sdk(
     identity_public_key: IdentityPublicKey,
     block_height: BlockHeight,
     core_block_height: CoreBlockHeight,
+    signer_context: usize,
     signer_callback: u64
 ) -> Result<Document, String> {
     let rt = unsafe { (*rust_sdk).get_runtime() };
@@ -694,7 +698,7 @@ pub fn replace_document_sdk(
             .document_type_for_name(&document_type_str)
             .expect("expected a profile document type");
 
-        let signer = CallbackSigner::new(signer_callback).expect("signer");
+        let signer = CallbackSigner::new(signer_context, signer_callback).expect("signer");
 
         trace!("IdentityPublicKey: {:?}", identity_public_key);
         let request_settings = unsafe { (*rust_sdk).get_request_settings() };
