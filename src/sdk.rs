@@ -171,7 +171,8 @@ pub fn create_dash_sdk_with_context(
 pub fn create_dash_sdk_using_single_evonode(
     evonode: String,
     quorum_public_key_callback: u64,
-    data_contract_callback: u64
+    data_contract_callback: u64,
+    is_testnet: bool
 ) -> DashSdk {
     setup_logs();
     let rt = Arc::new(
@@ -183,7 +184,11 @@ pub fn create_dash_sdk_using_single_evonode(
 
     // Execute the async block using the Tokio runtime
     rt.block_on(async {
-        let cfg = Config::new();
+        let cfg = if is_testnet {
+            Config::new_testnet()
+        } else {
+            Config::new_mainnet()
+        };
         let data_contract_cache = Arc::new(Cache::new(NonZeroUsize::new(100).expect("Non Zero")));
         let sdk = if quorum_public_key_callback != 0 {
             // use the callbacks to obtain quorum public keys
