@@ -779,3 +779,44 @@ fn check_all_nodes_test() {
     println!("good nodes: {:?}", good_nodes);
     println!("bad nodes: {:?}", bad_nodes);
 }
+
+#[test]
+fn check_all_nodes_mainnet_test() {
+
+    let mut good_nodes: Vec<String> = Vec::new();
+    let mut bad_nodes: Vec<String> = Vec::new();
+
+    for address in MAINNET_ADDRESS_LIST {
+        let mut sdk = create_dash_sdk_using_single_evonode(address.into(), 0, 0, false);
+        let contract_id = Identifier::from(dpns_contract::ID_BYTES);
+        let docs_result = unsafe {
+            fetch_documents_with_query_and_sdk(
+                &mut sdk,
+                contract_id,
+                "domain".to_string(),
+                vec![
+                    WhereClause { field: "normalizedLabel".into(), value: Value::Text("test111".into()), operator: WhereOperator::StartsWith },
+                    WhereClause { field: "normalizedParentDomainName".into(), value: Value::Text("dash".into()), operator: WhereOperator::Equal }
+                ],
+                vec![
+                    OrderClause { field: "normalizedLabel".into(), ascending: true }
+                ],
+                100,
+                None
+            )
+        };
+
+        match docs_result {
+            Ok(docs) => {
+                tracing::info!("{}: success", address);
+                good_nodes.push(address.to_string());
+            }
+            Err(e) => {
+                println!("{}: error/fail: {}", address, e);
+                bad_nodes.push(address.to_string());
+            }
+        }
+    }
+    println!("good nodes: {:?}", good_nodes);
+    println!("bad nodes: {:?}", bad_nodes);
+}
