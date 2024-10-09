@@ -6,6 +6,7 @@ use dash_sdk::platform::transition::put_settings::PutSettings;
 use dash_sdk::platform::transition::vote::PutVote;
 use dash_sdk::{Error, Sdk};
 use dash_sdk::platform::{Fetch, FetchMany};
+use dashcore::{base58, PrivateKey};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::data_contract::DataContract;
 use dpp::data_contract::document_type::accessors::DocumentTypeV0Getters;
@@ -16,9 +17,11 @@ use dpp::ProtocolError;
 use dpp::state_transition::StateTransition;
 use dpp::util::entropy_generator::DefaultEntropyGenerator;
 use dpp::voting::contender_structs::ContenderWithSerializedDocument;
+use dpp::voting::vote_choices::resource_vote_choice::ResourceVoteChoice;
 use dpp::voting::vote_polls::contested_document_resource_vote_poll::ContestedDocumentResourceVotePoll;
 use dpp::voting::vote_polls::VotePoll;
 use dpp::voting::votes::resource_vote::ResourceVote;
+use dpp::voting::votes::resource_vote::v0::ResourceVoteV0;
 use dpp::voting::votes::Vote;
 use drive::query::contested_resource_votes_given_by_identity_query::ContestedResourceVotesGivenByIdentityQuery;
 use drive::query::vote_poll_vote_state_query::{ContestedDocumentVotePollDriveQuery, ContestedDocumentVotePollDriveQueryResultType};
@@ -33,7 +36,7 @@ use simple_signer::signer::SimpleSigner;
 use tracing::trace;
 use crate::config::{Config, EntryPoint};
 use crate::fetch_document::fetch_documents_with_query_and_sdk;
-use crate::put::{CallbackSigner, wait_for_response_concurrent};
+use crate::put::{CallbackSigner, SignerCallback, wait_for_response_concurrent};
 use crate::sdk::{create_dash_sdk_using_core_testnet, DashSdk};
 
 #[ferment_macro::export]
@@ -59,27 +62,87 @@ pub fn put_vote_to_platform(
             user_fee_increase: None,
         };
 
-        trace!("Call Vote::put_to_platform");
+        tracing::info!("Call Vote::put_to_platform");
 
-        let vote = vote.put_to_platform_and_wait_for_response(
+        let masternode_vote_transition = vote.put_to_platform(
             voter_pro_tx_hash,
             &voting_public_key,
             &sdk,
             &signer,
             Some(settings)
         ).await.or_else(|err|Err(err.to_string()))?;
-        trace!("Call Vote::wait_for_reponse");
+        tracing::info!("Call Vote::wait_for_response");
 
-        // let result_vote = wait_for_response_concurrent_vote(
-        //     &vote,
-        //     &sdk,
-        //     transition.clone(),
-        //     settings
-        // ).await.or_else(|err|Err(err.to_string()))?;
+        let vote = <Vote as PutVote<SimpleSigner>>::wait_for_response::<'_, '_, '_>(
+            &vote,
+            masternode_vote_transition,
+            &sdk,
+            Some(settings)
+        ).await.or_else(|err|Err(err.to_string()))?;
 
         Ok(vote)
     })
 }
+
+// #[test]
+// fn put_vote_test() {
+//     let mut sdk = create_dash_sdk_using_core_testnet();
+//     let contract_id = Identifier::from(dpns_contract::ID_BYTES);
+//     let vote = Vote::ResourceVote(
+//         ResourceVote::V0(
+//             ResourceVoteV0 {
+//                 vote_poll: VotePoll::ContestedDocumentResourceVotePoll(
+//                     ContestedDocumentResourceVotePoll {
+//                         contract_id,
+//                         document_type_name: "domain".to_string(),
+//                         index_name: "parentNameAndLabel".to_string(),
+//                         index_values: vec![Value::Text("dash".to_string()), Value::Text("test000".to_string())],
+//                     }
+//                 ),
+//                 resource_vote_choice: ResourceVoteChoice::Lock,
+//             }
+//         )
+//     );
+//
+//     let voter_pro_tx_hash = Identifier::from_string("").unwrap();
+//     let wif_private_key = "a7285a6108fcd2a7b64060cbec68dddaf70c2d0514d8e0a447c8c933aef11b81";
+//     let voting_private_key = PrivateKey::from_wif(wif_private_key).unwrap();
+//     let voting_public_key = voting_private_key.public_key()
+//     let mut signer = SimpleSigner::default();
+//
+//     signer.add_key(identity_public_key.clone(), Vec::from(voting_private_key.as_slice()));
+//
+//     let request_settings = unsafe { (*sdk).get_request_settings() };
+//
+//     let settings = PutSettings {
+//         request_settings,
+//         identity_nonce_stale_time_s: None,
+//         user_fee_increase: None,
+//     };
+//
+//     tracing::info!("Call Vote::put_to_platform");
+//
+//     let masternode_vote_transition = vote.put_to_platform(
+//         voter_pro_tx_hash,
+//         &voting_public_key,
+//         &sdk,
+//         &signer,
+//         Some(settings)
+//     ).await.or_else(|err|Err(err.to_string()))?;
+//     tracing::info!("Call Vote::wait_for_response");
+//
+//     let vote = <Vote as PutVote<SimpleSigner>>::wait_for_response::<'_, '_, '_>(
+//         &vote,
+//         masternode_vote_transition,
+//         &sdk,
+//         Some(settings)
+//     ).await.or_else(|err|Err(err.to_string()))?;
+//
+//     match resources_result {
+//         Ok(resources) => println!("contested resources = {:?}", resources),
+//         Err(e) => panic!("error: {}", e)
+//     }
+// }
 
 // pub async fn wait_for_response_concurrent_vote(
 //     vote: &Vote,
@@ -265,7 +328,7 @@ fn get_vote_contenders_test() {
     let resources_result = get_vote_contenders(
         &mut sdk,
         "parentNameAndLabel".to_string(),
-        vec![Value::Text("dash".to_string()), Value::Text("b0b1ee".to_string())],
+        vec![Value::Text("dash".to_string()), Value::Text("test110".to_string())],
         "domain".to_string(),
         contract_id
     );
@@ -310,7 +373,60 @@ fn get_votes_test() {
     let contract_id = Identifier::from_string("HLWuAX1TebsXFNC8W2e8yUzaqLRCaB29pPxomNcRbBjK", Encoding::Base58).unwrap();
     let resources_result = get_votes(
         &mut sdk,
-        contract_id
+        Identifier::from(dpns_contract::ID_BYTES)
+    );
+    match resources_result {
+        Ok(resources) => println!("votes = {:?}", resources),
+        Err(e) => panic!("error: {}", e)
+    }
+}
+
+//#[ferment_macro::export]
+pub fn get_votepolls(
+    rust_sdk: * mut DashSdk,
+    start_time: TimestampMillis,
+    start_time_included: bool,
+    end_time: TimestampMillis,
+    end_time_included: bool
+) -> Result<VotePollsGroupedByTimestamp, String>{
+
+    let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
+
+    rt.block_on(async {
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+
+        let query = VotePollsByEndDateDriveQuery {
+            start_time: Some((start_time, start_time_included)),
+            end_time: Some((end_time, end_time_included)),
+            limit: None,
+            offset: None,
+            order_ascending: true,
+        };
+
+        match VotePoll::fetch_many_with_settings(&sdk, query.clone(), settings).await {
+            Ok(votes) => Ok(votes),
+            Err(e) => Err(e.to_string())
+        }
+    })
+}
+
+#[test]
+fn get_votepolls_test() {
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    tracing::warn!("sdk: {:?}", sdk.get_sdk());
+
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let start_mills = since_the_epoch.as_millis() as u64;
+
+    let resources_result = get_votepolls(
+        &mut sdk,
+        start_mills - 1000 * 2 * 3600,
+        true,
+        start_mills + 1000 * 7 * 24 * 3600,
+        true
     );
     match resources_result {
         Ok(resources) => println!("contested resources = {:?}", resources),
@@ -318,81 +434,75 @@ fn get_votes_test() {
     }
 }
 
-// #[ferment_macro::export]
-// pub fn get_votepolls(
-//     rust_sdk: * mut RustSdk,
-//     start_time: TimestampMillis,
-//     start_time_included: bool,
-//     end_time: TimestampMillis,
-//     end_time_included: bool
-// ) -> Result<VotePollsGroupedByTimestamp, String>{
-//
-//     let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let sdk = unsafe { (*rust_sdk).get_sdk() };
-//         let settings = unsafe { (*rust_sdk).get_request_settings() };
-//
-//         let query = VotePollsByEndDateDriveQuery {
-//             start_time: Some((start_time, start_time_included)),
-//             end_time: Some((end_time, end_time_included)),
-//             limit: None,
-//             offset: None,
-//             order_ascending: true,
-//         };
-//
-//         match VotePoll::fetch_many_with_settings(&sdk, query.clone(), settings).await {
-//             Ok(votes) => Ok(votes),
-//             Err(e) => Err(e.to_string())
-//         }
-//     })
-// }
-//
-// #[test]
-// fn get_votepolls_test() {
-//     let mut sdk = create_sdk(0, 0);
-//     tracing::warn!("sdk: {:?}", sdk.get_sdk());
-//
-//     let start = SystemTime::now();
-//     let since_the_epoch = start.duration_since(UNIX_EPOCH)
-//         .expect("Time went backwards");
-//     let start_mills = since_the_epoch.as_millis() as u64;
-//
-//     let resources_result = get_votepolls(
-//         &mut sdk,
-//         start_mills - 1000 * 7 * 24 * 3600,
-//         true,
-//         start_mills + 1000 * 7 * 24 * 3600,
-//         true
-//     );
-//     match resources_result {
-//         Ok(resources) => println!("contested resources = {:?}", resources),
-//         Err(e) => panic!("error: {}", e)
-//     }
-// }
+use dash_sdk::platform::query::VoteQuery;
+//#[ferment_macro::export]
+pub fn get_last_vote_from_masternode(
+    rust_sdk: * mut DashSdk,
+    masternode_protxhash: Identifier,
+    index_name: String,
+    index_values: Vec<Value>,
+    document_type_name: String,
+    contract_id: Identifier
+) -> Result<ResourceVotesByIdentity, String>{
 
-// use dash_sdk::platform::query::VoteQuery;
-// #[ferment_macro::export]
-// pub fn get_votes_from_identity(
-//     rust_sdk: * mut RustSdk,
-//     identity: Identifier
-// ) -> Result<ResourceVotesByIdentity, String>{
-//
-//     let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
-//
-//     // Execute the async block using the Tokio runtime
-//     rt.block_on(async {
-//         let sdk = unsafe { (*rust_sdk).get_sdk() };
-//         let settings = unsafe { (*rust_sdk).get_request_settings() };
-//
-//         let query = VoteQuery {
-//
-//         };
-//
-//         match ResourceVote::fetch_many_with_settings(&sdk, query.clone(), settings).await {
-//             Ok(votes) => Ok(votes),
-//             Err(e) => Err(e.to_string())
-//         }
-//     })
-// }
+    let rt = unsafe { (*rust_sdk).get_runtime() }.clone();
+
+    rt.block_on(async {
+        let sdk = unsafe { (*rust_sdk).get_sdk() };
+        let settings = unsafe { (*rust_sdk).get_request_settings() };
+
+        let query = VoteQuery {
+            identity_id: masternode_protxhash,
+            vote_poll_id: ContestedDocumentResourceVotePoll {
+                contract_id,
+                document_type_name,
+                index_name,
+                index_values,
+            }.unique_id().unwrap(),
+        };
+
+        match ResourceVote::fetch_many_with_settings(&sdk, query.clone(), settings).await {
+            Ok(votes) => Ok(votes),
+            Err(e) => Err(e.to_string())
+        }
+    })
+}
+
+#[test]
+fn get_votes_from_identity_test() {
+    let mut sdk = create_dash_sdk_using_core_testnet();
+    tracing::warn!("sdk: {:?}", sdk.get_sdk());
+
+    //let masternode_identifier = Identifier::from_string("2Ey6wdP5YYSqhq96KmU349CeSCsV4avrsNCaXqogGEr9", Encoding::Base58).unwrap();
+    let masternode_identifier = Identifier::from_string("bc77a5a2cec455c79fb92fb683dbd87a2a92b663c9a46d0c50d11889b4aeb121", Encoding::Hex).unwrap();
+    let contract_id = Identifier::from(dpns_contract::ID_BYTES);
+    let index_name =  "parentNameAndLabel".to_string();
+    let index_values = vec![Value::Text("dash".to_string()), Value::Text("test110".to_string())];
+    let document_type_name = "domain".to_string();
+
+    let result = get_last_vote_from_masternode(
+        &mut sdk,
+        masternode_identifier,
+        index_name.clone(),
+        index_values.clone(),
+        document_type_name.clone(),
+        contract_id,
+    );
+    match result {
+        Ok(votesByIdentity) => println!("result 1 = {:?}", votesByIdentity),
+        Err(e) => panic!("error: {}", e)
+    }
+    let masternode_identifier = Identifier::from_string("AZW2PvF35kBGgmF3naWqdUZt7A74b7CszFgoxncHViEv", Encoding::Base58).unwrap();
+    let result = get_last_vote_from_masternode(
+        &mut sdk,
+        masternode_identifier,
+        index_name,
+        index_values,
+        document_type_name,
+        contract_id,
+    );
+    match result {
+        Ok(votesByIdentity) => println!("result 2 = {:?}", votesByIdentity),
+        Err(e) => panic!("error: {}", e)
+    }
+}
